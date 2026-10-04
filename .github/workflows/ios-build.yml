@@ -1,0 +1,86 @@
+name: iOS build and tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+
+jobs:
+  simulator:
+    name: Test on ${{ matrix.device }}
+    runs-on: macos-15
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device: iPhone 16
+            slug: iPhone16
+          - device: iPhone SE (3rd generation)
+            slug: iPhoneSE3
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: bash scripts/generate-project.sh
+      - name: Show compiler version
+        run: xcodebuild -version
+      - name: Unit tests, UI tests, and screenshots
+        env:
+          SIMULATOR_NAME: ${{ matrix.device }}
+          SIMULATOR_RUNTIME: iOS-18-5
+        run: bash scripts/ci-test.sh
+      - name: Upload test results and screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: WEEKNOTE-tests-${{ matrix.slug }}
+          path: |
+            build/*.xcresult
+            build/*.log
+            build/screenshots/
+            build/WEEKNOTE-simulator-*.zip
+          retention-days: 30
+          if-no-files-found: warn
+
+  unsigned-ipa:
+    name: Build unsigned device IPA
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: bash scripts/generate-project.sh
+      - name: Archive and package device app
+        run: bash scripts/build-unsigned-ipa.sh
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: WEEKNOTE-unsigned-ipa
+          path: |
+            build/WEEKNOTE-unsigned.ipa
+            build/WEEKNOTE-unsigned.ipa.sha256
+            build/UNSIGNED-IPA.txt
+          retention-days: 30
+          if-no-files-found: error
+      - name: Upload archive log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: WEEKNOTE-device-build-log
+          path: build/archive-unsigned.log
+          retention-days: 14
