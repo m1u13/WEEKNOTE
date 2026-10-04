@@ -142,15 +142,19 @@ final class PlannerUITests: XCTestCase {
         capture("event-completed")
     }
 
-    func testDateRibbonScrollsHorizontally() {
+    func testDateRibbonScrollsHorizontally() throws {
         let ribbon = element("date.ribbon")
         XCTAssertTrue(ribbon.waitForExistence(timeout: 5))
-        let initialDates = visibleDateLabels(in: ribbon)
+        let initialDates = visibleDateElements(in: ribbon)
         XCTAssertGreaterThan(initialDates.count, 2)
+        let firstDate = try XCTUnwrap(initialDates.first)
+        let initialX = firstDate.frame.minX
         capture("dates-before-scroll")
         ribbon.swipeLeft()
         waitUntil("Horizontal scrolling should reveal different dates") {
-            self.visibleDateLabels(in: ribbon) != initialDates
+            // A single frame query stays within the polling timeout. Enumerating
+            // every offscreen date can take longer than the entire expectation.
+            abs(firstDate.frame.minX - initialX) > 20
         }
         capture("dates-after-scroll")
         let visibleDate = visibleDateElements(in: ribbon).first
@@ -186,10 +190,6 @@ final class PlannerUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(frame.width + 2, minimumWidth ?? screen.width - 48, "Native sheet content is unexpectedly narrow", file: file, line: line)
     }
 
-    private func visibleDateLabels(in ribbon: XCUIElement) -> [String] {
-        visibleDateElements(in: ribbon).map(\.label)
-    }
-
     private func visibleDateElements(in ribbon: XCUIElement) -> [XCUIElement] {
         let viewport = ribbon.frame.insetBy(dx: 2, dy: 0)
         return ribbon.descendants(matching: .button).allElementsBoundByIndex
@@ -216,12 +216,19 @@ final class PlannerUITests: XCTestCase {
             for _ in 0..<6 {
                 if target.exists && target.isHittable { return }
                 let keyboard = app.keyboards.firstMatch
-                let top = max(screen.minY + 100, container.exists ? container.frame.minY + 70 : screen.minY + 100)
-                let bottom = min(screen.maxY - 130, keyboard.exists ? keyboard.frame.minY - 25 : screen.maxY - 130)
+                let viewport = container.exists ? screen.intersection(container.frame) : screen
+                let top = max(screen.minY + 100, viewport.minY + 70)
+                var bottom = min(screen.maxY - 130, viewport.maxY - 24)
+                if keyboard.exists { bottom = min(bottom, keyboard.frame.minY - 25) }
+                if identifier == "screen.week" {
+                    let addButton = element("task.add")
+                    if addButton.exists { bottom = min(bottom, addButton.frame.minY - 24) }
+                }
                 guard bottom - top > 50 else { return }
                 let origin = app.coordinate(withNormalizedOffset: .zero)
-                let upper = origin.withOffset(CGVector(dx: screen.width * 0.9, dy: top))
-                let lower = origin.withOffset(CGVector(dx: screen.width * 0.9, dy: bottom))
+                let x = viewport.midX + viewport.width * 0.35
+                let upper = origin.withOffset(CGVector(dx: x, dy: top))
+                let lower = origin.withOffset(CGVector(dx: x, dy: bottom))
                 if direction { lower.press(forDuration: 0.05, thenDragTo: upper) }
                 else { upper.press(forDuration: 0.05, thenDragTo: lower) }
             }
