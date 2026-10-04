@@ -72,6 +72,7 @@ struct ContentView: View {
                 }
             }.padding(.horizontal, 24).padding(.top, 16).padding(.bottom, 22)
         }
+        .accessibilityIdentifier("screen.week")
         .background(Theme.background)
         .navigationTitle("WEEKNOTE").navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -79,7 +80,6 @@ struct ContentView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { addBar(kind: .todo) }
         .searchable(text: $search, prompt: "タスクを検索")
-        .accessibilityIdentifier("screen.week")
     }
 
     private var header: some View {

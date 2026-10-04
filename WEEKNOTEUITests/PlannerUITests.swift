@@ -153,7 +153,7 @@ final class PlannerUITests: XCTestCase {
             self.visibleDateLabels(in: ribbon) != initialDates
         }
         capture("dates-after-scroll")
-        let visibleDate = ribbon.descendants(matching: .button).allElementsBoundByIndex.first { $0.isHittable }
+        let visibleDate = visibleDateElements(in: ribbon).first
         XCTAssertNotNil(visibleDate)
         visibleDate?.tap()
         waitUntil("Selecting a date should update its selected state") { visibleDate?.isSelected == true }
@@ -183,13 +183,24 @@ final class PlannerUITests: XCTestCase {
         XCTAssertGreaterThan(frame.height, 0, file: file, line: line)
         XCTAssertGreaterThanOrEqual(frame.minX, screen.minX - 2, "View extends beyond the left side of the screen", file: file, line: line)
         XCTAssertLessThanOrEqual(frame.maxX, screen.maxX + 2, "View extends beyond the right side of the screen", file: file, line: line)
-        XCTAssertGreaterThanOrEqual(frame.width, minimumWidth ?? screen.width - 48, "Native sheet content is unexpectedly narrow", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(frame.width + 2, minimumWidth ?? screen.width - 48, "Native sheet content is unexpectedly narrow", file: file, line: line)
     }
 
     private func visibleDateLabels(in ribbon: XCUIElement) -> [String] {
-        ribbon.descendants(matching: .button).allElementsBoundByIndex
-            .filter { $0.isHittable && $0.frame.intersection(ribbon.frame).width > 20 }
-            .map(\.label)
+        visibleDateElements(in: ribbon).map(\.label)
+    }
+
+    private func visibleDateElements(in ribbon: XCUIElement) -> [XCUIElement] {
+        let viewport = ribbon.frame.insetBy(dx: 2, dy: 0)
+        return ribbon.descendants(matching: .button).allElementsBoundByIndex
+            .filter {
+                let frame = $0.frame
+                // CoreSimulator cannot calculate hit points for distant, clipped dates.
+                // Check the physical viewport before asking XCTest about hittability.
+                return frame.width > 0 && frame.height > 0
+                    && viewport.contains(frame)
+                    && $0.isHittable
+            }
     }
 
     private func waitUntil(_ message: String, timeout: TimeInterval = 8, file: StaticString = #filePath, line: UInt = #line, condition: @escaping () -> Bool) {

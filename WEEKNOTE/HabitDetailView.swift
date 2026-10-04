@@ -110,7 +110,7 @@ struct HabitDetailView: View {
                             HStack {
                                 Stepper("\(minutes)分", value: $minutes, in: 1...1440, step: 5).font(.subheadline)
                                 Button("記録") { if store.addHabitLog(habitID: habitID, date: logDate, minutes: minutes) { error = nil } else { error = store.errorMessage } }
-                                    .buttonStyle(.borderedProminent).tint(.primary).accessibilityIdentifier("habit.record")
+                                    .buttonStyle(.borderedProminent).tint(.primary).foregroundStyle(Theme.background).accessibilityIdentifier("habit.record")
                             }
                         }
                         timerControls
@@ -155,7 +155,7 @@ struct HabitDetailView: View {
                         Button("終了して記録") {
                             let amount = max(1, Int(ceil(timer.elapsed() / 60)))
                             if store.addHabitLog(habitID: habitID, date: Date(), minutes: amount) { timer.reset(); error = nil } else { timer.pause(); error = store.errorMessage }
-                        }.buttonStyle(.borderedProminent).tint(.primary)
+                        }.buttonStyle(.borderedProminent).tint(.primary).foregroundStyle(Theme.background)
                         Button("取り消す", role: .destructive) { timer.reset() }.font(.caption)
                     }
                     Text("1分未満を切り上げて記録します。").font(.caption).foregroundStyle(.secondary)
