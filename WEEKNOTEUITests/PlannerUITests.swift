@@ -157,10 +157,12 @@ final class PlannerUITests: XCTestCase {
             abs(firstDate.frame.minX - initialX) > 20
         }
         capture("dates-after-scroll")
-        let visibleDate = visibleDateElements(in: ribbon).first
-        XCTAssertNotNil(visibleDate)
-        visibleDate?.tap()
-        waitUntil("Selecting a date should update its selected state") { visibleDate?.isSelected == true }
+        let visibleDate = try XCTUnwrap(visibleDateElements(in: ribbon).first)
+        let dateLabel = visibleDate.label
+        visibleDate.tap()
+        // Choosing a distant day replaces the ribbon's date range. Resolve the
+        // same day by its label rather than retaining its former array index.
+        waitUntil("Selecting a date should update its selected state") { ribbon.buttons[dateLabel].isSelected }
         capture("date-selected")
     }
 
