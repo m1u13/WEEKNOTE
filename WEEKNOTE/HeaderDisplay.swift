@@ -148,6 +148,7 @@ private struct HeaderDisplayReadingView: View {
 
 struct HeaderDisplaySettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(HeaderDisplayPreference.storageKey) private var storedConfiguration = HeaderDisplayPreference.defaultData
     @State private var draft = HeaderDisplayConfiguration()
     @State private var loaded = false
@@ -169,9 +170,21 @@ struct HeaderDisplaySettingsView: View {
                         .contentShape(Rectangle()).onTapGesture { focusedTitle = false }
                 }
                 Section {
-                    Picker("表示する内容", selection: $draft.mode) {
-                        ForEach(HeaderDisplayMode.allCases) { mode in Text(mode.title).tag(mode).accessibilityIdentifier("header.mode.\(mode.rawValue)") }
-                    }.pickerStyle(.inline).accessibilityIdentifier("header.mode")
+                    ForEach(HeaderDisplayMode.allCases) { mode in
+                        Button {
+                            focusedTitle = false
+                            InteractionMotion.selectionFeedback()
+                            withAnimation(InteractionMotion.animation(reduceMotion: reduceMotion)) { draft.mode = mode }
+                        } label: {
+                            HStack {
+                                Text(mode.title)
+                                Spacer()
+                                if draft.mode == mode { Image(systemName: "checkmark").fontWeight(.semibold) }
+                            }.contentShape(Rectangle())
+                        }.buttonStyle(.plain)
+                            .accessibilityIdentifier("header.mode.\(mode.rawValue)")
+                            .accessibilityAddTraits(draft.mode == mode ? [.isSelected] : [])
+                    }
                 } footer: { Text("週番号は選択日、日数は今日を基準に表示します。目標日と開始日は0日です。") }
                 if draft.mode == .deadline {
                     Section("目標") {
@@ -188,6 +201,7 @@ struct HeaderDisplaySettingsView: View {
             .scrollContentBackground(.hidden).background(Theme.background)
             .scrollDismissesKeyboard(.interactively)
             .dismissKeyboardOnBackgroundTap()
+            .accessibilityElement(children: .contain)
             .navigationTitle("見出しの表示").navigationBarTitleDisplayMode(.inline)
             .accessibilityIdentifier("header.settings")
             .toolbar {

@@ -62,6 +62,7 @@ struct TaskEditor: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .dismissKeyboardOnBackgroundTap()
+            .accessibilityElement(children: .contain)
             .navigationTitle(isNew ? (draft.kind == .event ? "予定を追加" : "タスクを追加") : "編集").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
@@ -116,6 +117,7 @@ struct HabitEditor: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .dismissKeyboardOnBackgroundTap()
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("editor.habit")
             }.navigationTitle(isNew ? "習慣を追加" : "習慣を編集").navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -163,6 +165,7 @@ struct ListEditor: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .dismissKeyboardOnBackgroundTap()
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("editor.list")
             }.navigationTitle(isNew ? "リストを追加" : "リストを編集").navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -196,6 +199,7 @@ struct LinkEditor: View {
             }
                 .scrollDismissesKeyboard(.interactively)
                 .dismissKeyboardOnBackgroundTap()
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("editor.link")
                 .navigationTitle(isNew ? "リンクを追加" : "リンクを編集").navigationBarTitleDisplayMode(.inline)
                 .toolbar {

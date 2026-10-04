@@ -9,6 +9,8 @@ private struct KeyboardDismissObserver: UIViewRepresentable {
     func makeUIView(context: Context) -> WindowObserverView {
         let view = WindowObserverView()
         view.isUserInteractionEnabled = false
+        view.isAccessibilityElement = false
+        view.accessibilityElementsHidden = true
         view.windowChanged = { [weak coordinator = context.coordinator] window in
             coordinator?.attach(to: window)
         }
@@ -67,6 +69,6 @@ private struct KeyboardDismissObserver: UIViewRepresentable {
 
 extension View {
     func dismissKeyboardOnBackgroundTap() -> some View {
-        background(KeyboardDismissObserver().frame(width: 0, height: 0))
+        background(KeyboardDismissObserver().frame(width: 0, height: 0).accessibilityHidden(true))
     }
 }

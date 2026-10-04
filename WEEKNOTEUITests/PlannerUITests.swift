@@ -68,7 +68,15 @@ final class PlannerUITests: XCTestCase {
 
         XCTAssertTrue(name.isHittable)
         name.tap()
-        name.typeText("UI test habit")
+        name.typeText("UI test ")
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "Tapping the name should keep native text input active")
+        let preview = element("editor.selectedSymbol")
+        XCTAssertTrue(preview.isHittable)
+        preview.tap()
+        waitUntil("Tapping outside the input should close the keyboard") { !self.app.keyboards.firstMatch.exists }
+        capture("habit-background-keyboard-dismissed")
+        name.tap()
+        name.typeText("habit")
         element("editor.save").tap()
         waitUntil("Habit editor should close after saving") { !editor.exists }
         XCTAssertTrue(element("habit.UI test habit").waitForExistence(timeout: 5))
@@ -173,6 +181,8 @@ final class PlannerUITests: XCTestCase {
         let habit = element("habit.読書")
         XCTAssertTrue(habit.waitForExistence(timeout: 5))
         habit.press(forDuration: 1)
+        XCTAssertTrue(app.buttons["削除"].waitForExistence(timeout: 5), "Long pressing should show the habit context menu")
+        XCTAssertFalse(element("habit.detail").exists, "Long pressing should keep the menu open without opening the detail")
         capture("habit-context-menu")
         tapMenuAction("編集")
         let editor = element("editor.habit")
@@ -201,6 +211,7 @@ final class PlannerUITests: XCTestCase {
         let list = element("list.item.仕事")
         XCTAssertTrue(list.waitForExistence(timeout: 5))
         list.press(forDuration: 1)
+        XCTAssertTrue(app.buttons["削除"].waitForExistence(timeout: 5), "Long pressing should show the list context menu")
         capture("list-context-menu")
         tapMenuAction("編集")
         let editor = element("editor.list")

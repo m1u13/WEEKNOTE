@@ -97,10 +97,12 @@ struct HabitDetailView: View {
                                 }
                             ZStack {
                                 periodChart(habit: habit)
+                                    .padding(.vertical, 8)
                                     .id("\(period.id)-\(CalendarSupport.dayKey(reference))")
                                     .transition(InteractionMotion.pageTransition(direction: pageDirection, reduceMotion: reduceMotion))
-                            }.frame(height: 170).clipped()
+                            }.frame(height: 186).clipped()
                         }.contentShape(Rectangle()).horizontalPageSwipe { move($0) }
+                            .accessibilityElement(children: .contain)
                             .accessibilityIdentifier("habit.period.navigation")
                             .accessibilityAction(named: Text("次の期間")) { move(1) }
                             .accessibilityAction(named: Text("前の期間")) { move(-1) }

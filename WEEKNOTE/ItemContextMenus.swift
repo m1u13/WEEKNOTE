@@ -11,7 +11,6 @@ struct HabitContextActions: ViewModifier {
 
     func body(content: Content) -> some View {
         content.contextMenu {
-            Button(action: open) { Label("記録・グラフ", systemImage: "chart.bar") }
             Button(action: edit) { Label("編集", systemImage: "pencil") }
             Button(role: .destructive) { confirmDelete = true } label: { Label("削除", systemImage: "trash") }
         }

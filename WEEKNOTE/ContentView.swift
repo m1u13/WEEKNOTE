@@ -116,7 +116,7 @@ struct ContentView: View {
                                 Text(habit.name).font(.caption).lineLimit(1)
                                 Text("\(minutes) / \(habit.goalMinutes)分").font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
                             }
-                        }.buttonStyle(PressFeedbackStyle()).accessibilityIdentifier("habit.\(habit.name)")
+                        }.buttonStyle(.plain).contentShape(Rectangle()).accessibilityIdentifier("habit.\(habit.name)")
                             .modifier(HabitContextActions(habit: habit, open: { sheet = .habit(habit) }, edit: { sheet = .habitEditor(habit) }))
                     }
                     Button { sheet = .habitEditor(nil) } label: {
@@ -298,6 +298,7 @@ struct ProgressViewScreen: View {
                     .id(CalendarSupport.dayKey(CalendarSupport.startOfWeek(selectedDay)))
                     .transition(InteractionMotion.pageTransition(direction: weekDirection, reduceMotion: reduceMotion))
                 }.clipped().contentShape(Rectangle()).horizontalPageSwipe { offset in moveWeek(offset) }
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("progress.week")
                     .accessibilityAction(named: Text("次の週")) { moveWeek(1) }
                     .accessibilityAction(named: Text("前の週")) { moveWeek(-1) }
