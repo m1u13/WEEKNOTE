@@ -54,15 +54,18 @@ final class PlannerUITests: XCTestCase {
         XCTAssertTrue(search.isHittable)
         search.tap()
         search.typeText("ランニング")
-        let running = app.buttons["ランニング"]
+        let running = element("symbol.figure.run")
         XCTAssertTrue(running.waitForExistence(timeout: 5))
         reveal(running, in: "editor.habit")
         running.tap()
-        waitUntil("The chosen habit icon should be selected") { running.isSelected }
+        let name = element("habit.name")
+        waitUntil("Choosing an icon should update the preview, close the keyboard, and return to the name") {
+            self.element("editor.selectedSymbolName").label == "ランニング"
+                && !self.app.keyboards.firstMatch.exists && name.isHittable
+        }
+        XCTAssertTrue(element("editor.selectedSymbol").isHittable)
         capture("habit-icon-search")
 
-        let name = element("habit.name")
-        reveal(name, in: "editor.habit")
         XCTAssertTrue(name.isHittable)
         name.tap()
         name.typeText("UI test habit")
@@ -114,7 +117,7 @@ final class PlannerUITests: XCTestCase {
         XCTAssertGreaterThan(month.descendants(matching: .button).count, 20)
         capture("calendar")
         let firstDate = month.descendants(matching: .button).firstMatch.label
-        app.buttons["次の月"].tap()
+        month.swipeLeft()
         waitUntil("Next month should display different calendar dates") {
             month.descendants(matching: .button).firstMatch.label != firstDate
         }
@@ -166,6 +169,160 @@ final class PlannerUITests: XCTestCase {
         capture("date-selected")
     }
 
+    func testHabitContextMenuEditAndCancelledDeletion() {
+        let habit = element("habit.読書")
+        XCTAssertTrue(habit.waitForExistence(timeout: 5))
+        habit.press(forDuration: 1)
+        capture("habit-context-menu")
+        tapMenuAction("編集")
+        let editor = element("editor.habit")
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertEqual(element("habit.name").value as? String, "読書")
+        assertFitsScreen(editor)
+        capture("habit-context-edit")
+        app.buttons["キャンセル"].tap()
+        waitUntil("Cancelling the editor should return to the habit") { !editor.exists && habit.isHittable }
+
+        habit.press(forDuration: 1)
+        tapMenuAction("削除")
+        let confirmation = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "読書", "すべての記録")).firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        capture("habit-delete-confirmation")
+        app.buttons["キャンセル"].tap()
+        waitUntil("Cancelling deletion should retain the habit") { !confirmation.exists && habit.isHittable }
+        habit.tap()
+        XCTAssertTrue(element("habit.detail").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("habit.chart").exists)
+        capture("habit-retained-after-cancel")
+    }
+
+    func testListContextMenuIconPreviewAndKeyboardDismissal() {
+        openTab("リスト")
+        let list = element("list.item.仕事")
+        XCTAssertTrue(list.waitForExistence(timeout: 5))
+        list.press(forDuration: 1)
+        capture("list-context-menu")
+        tapMenuAction("編集")
+        let editor = element("editor.list")
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        assertFitsScreen(editor)
+        XCTAssertEqual(element("list.name").value as? String, "仕事")
+        let search = element("symbol.search")
+        reveal(search, in: "editor.list")
+        XCTAssertTrue(search.isHittable)
+        search.tap()
+        search.typeText("ランニング")
+        let icon = element("symbol.figure.run")
+        XCTAssertTrue(icon.waitForExistence(timeout: 5))
+        reveal(icon, in: "editor.list")
+        icon.tap()
+        let name = element("list.name")
+        waitUntil("The list icon preview and name should be visible with the keyboard closed") {
+            self.element("editor.selectedSymbolName").label == "ランニング"
+                && !self.app.keyboards.firstMatch.exists && name.isHittable
+        }
+        XCTAssertTrue(element("editor.selectedSymbol").isHittable)
+        capture("list-icon-preview")
+        element("editor.save").tap()
+        waitUntil("Saving the list should close the editor") { !editor.exists }
+        list.press(forDuration: 1)
+        tapMenuAction("編集")
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertEqual(element("editor.selectedSymbolName").label, "ランニング")
+        capture("list-icon-saved")
+    }
+
+    func testCalendarSwipesMonthsWithoutBlockingVerticalScrolling() {
+        openTab("カレンダー")
+        let month = element("calendar.month")
+        let title = element("calendar.monthTitle")
+        XCTAssertTrue(month.waitForExistence(timeout: 5))
+        let initialTitle = title.label
+        month.swipeLeft()
+        waitUntil("A left swipe should show the next month") { title.label != initialTitle }
+        capture("calendar-swipe-next")
+        month.swipeRight()
+        waitUntil("A right swipe should return to the original month") { title.label == initialTitle }
+        capture("calendar-swipe-back")
+        let initialY = title.frame.minY
+        month.swipeUp()
+        waitUntil("Vertical dragging on the calendar should scroll its enclosing screen") { title.frame.minY < initialY - 20 }
+        XCTAssertEqual(title.label, initialTitle, "Vertical scrolling must retain the displayed month")
+        capture("calendar-vertical-scroll")
+    }
+
+    func testHabitChartSwipesEachPeriodAndSelectsHistoryDay() {
+        element("habit.読書").tap()
+        let detail = element("habit.detail")
+        XCTAssertTrue(detail.waitForExistence(timeout: 5))
+        let picker = element("habit.period")
+        let label = element("habit.period.label")
+        for period in ["Week", "Month", "Year"] {
+            picker.buttons[period].tap()
+            let initialLabel = label.label
+            let chart = element("habit.chart")
+            XCTAssertTrue(chart.waitForExistence(timeout: 5))
+            chart.swipeLeft()
+            waitUntil("A left chart swipe should change the \(period) period") { label.label != initialLabel }
+            capture("habit-chart-\(period.lowercased())-next")
+            element("habit.chart").swipeRight()
+            waitUntil("A right chart swipe should restore the \(period) period") { label.label == initialLabel }
+        }
+        let initialPeriod = label.label
+        let initialY = label.frame.minY
+        element("habit.chart").swipeUp()
+        waitUntil("Vertical chart dragging should scroll the detail") { label.frame.minY < initialY - 20 }
+        XCTAssertEqual(label.label, initialPeriod, "Vertical dragging must retain the chart period")
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        let today = element("habit.history.day." + formatter.string(from: Date()))
+        reveal(today, in: "habit.detail")
+        XCTAssertTrue(today.isHittable)
+        today.tap()
+        waitUntil("Selecting a history day should mark that day selected") { today.isSelected }
+        XCTAssertFalse(app.staticTexts["日付をタップして記録を確認"].exists)
+        capture("habit-history-selected")
+    }
+
+    func testHeaderDeadlineSettingPersistsAcrossLaunch() {
+        let initialHeading = element("week.heading").label
+        element("header.configure").tap()
+        let settings = element("header.settings")
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        let deadline = element("header.mode.deadline")
+        XCTAssertTrue(deadline.waitForExistence(timeout: 5))
+        deadline.tap()
+        let title = element("header.deadline.title")
+        reveal(title, in: "header.settings")
+        XCTAssertTrue(title.isHittable)
+        title.tap()
+        let previousTitle = title.value as? String ?? ""
+        title.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: previousTitle.count) + "UI goal")
+        let date = element("header.deadline.date")
+        reveal(date, in: "header.settings")
+        XCTAssertTrue(date.exists)
+        let savedDate = date.value as? String
+        capture("header-deadline-settings")
+        element("header.save").tap()
+        waitUntil("Saving the deadline should replace the week number") { self.element("week.heading").label != initialHeading }
+        XCTAssertTrue(app.staticTexts["UI goal当日"].waitForExistence(timeout: 5))
+        capture("header-deadline-saved")
+
+        app.terminate()
+        app.launchArguments = ["--uitesting", "--preserve-header"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["UI goal当日"].waitForExistence(timeout: 10))
+        XCTAssertEqual(element("week.heading").label, "0")
+        element("header.configure").tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertEqual(title.value as? String, "UI goal")
+        if let savedDate { XCTAssertEqual(date.value as? String, savedDate) }
+        capture("header-deadline-restored")
+    }
+
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
@@ -174,6 +331,12 @@ final class PlannerUITests: XCTestCase {
         let button = app.tabBars.buttons[name]
         XCTAssertTrue(button.waitForExistence(timeout: 5))
         button.tap()
+    }
+
+    private func tapMenuAction(_ title: String) {
+        let action = app.buttons[title].firstMatch
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        action.tap()
     }
 
     private func capture(_ name: String) {

@@ -62,6 +62,7 @@ struct SectionCaption: View {
 }
 
 struct ProgressRing<Content: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var progress: Double
     var size: CGFloat = 64
     @ViewBuilder var content: () -> Content
@@ -70,26 +71,42 @@ struct ProgressRing<Content: View>: View {
             Circle().stroke(Theme.line, lineWidth: 3)
             Circle().trim(from: 0, to: min(1, max(0, progress))).stroke(Color.primary.opacity(0.7), style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
             content()
-        }.frame(width: size, height: size).animation(.easeInOut(duration: 0.25), value: progress)
+        }.frame(width: size, height: size).animation(InteractionMotion.animation(reduceMotion: reduceMotion), value: progress)
     }
 }
 
 struct SymbolPicker: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selection: String
+    var onSelection: () -> Void = {}
     @State private var query = ""
+    @FocusState private var searchFocused: Bool
     private let columns = [GridItem(.adaptive(minimum: 58), spacing: 12)]
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            TextField("アイコンを検索", text: $query).textFieldStyle(.roundedBorder).accessibilityIdentifier("symbol.search")
+            TextField("アイコンを検索", text: $query)
+                .textFieldStyle(.roundedBorder)
+                .focused($searchFocused)
+                .submitLabel(.search)
+                .onSubmit { searchFocused = false }
+                .accessibilityIdentifier("symbol.search")
             LazyVGrid(columns: columns, spacing: 14) {
                 ForEach(HabitSymbols.all.filter { query.isEmpty || $0.name.contains(query) }) { entry in
-                    Button { selection = entry.symbol } label: {
+                    Button {
+                        searchFocused = false
+                        withAnimation(reduceMotion ? nil : .smooth(duration: 0.2)) { selection = entry.symbol }
+                        query = ""
+                        onSelection()
+                    } label: {
                         VStack(spacing: 5) {
                             Image(systemName: entry.symbol).font(.system(size: 23, weight: .light)).frame(width: 48, height: 48)
                                 .background(selection == entry.symbol ? Color.primary.opacity(0.12) : Theme.subtle, in: RoundedRectangle(cornerRadius: 12))
                             Text(entry.name).font(.caption2).lineLimit(1)
                         }
-                    }.buttonStyle(.plain).accessibilityLabel(entry.name).accessibilityAddTraits(selection == entry.symbol ? [.isSelected] : [])
+                    }.buttonStyle(.plain)
+                        .accessibilityLabel(entry.name)
+                        .accessibilityIdentifier("symbol.\(entry.symbol)")
+                        .accessibilityAddTraits(selection == entry.symbol ? [.isSelected] : [])
                 }
             }
         }
@@ -98,41 +115,48 @@ struct SymbolPicker: View {
 
 struct TaskRow: View {
     @EnvironmentObject private var store: PlannerStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var task: PlannerTask
     var showDate = false
     var edit: () -> Void
     var body: some View {
         HStack(spacing: 14) {
-            Button { withAnimation { _ = store.toggleTask(task) } } label: {
+            Button { withAnimation(InteractionMotion.animation(reduceMotion: reduceMotion)) { _ = store.toggleTask(task) } } label: {
                 Image(systemName: task.isCompleted ? "checkmark.square.fill" : "square")
                     .font(.system(size: 19, weight: .light)).foregroundStyle(task.isCompleted ? Color.primary.opacity(0.7) : Color.secondary.opacity(0.6))
-                    .frame(width: 28, height: 44)
-            }.buttonStyle(.plain).accessibilityLabel("\(task.title)を\(task.isCompleted ? "未完了に戻す" : "完了にする")")
+                    .frame(width: 28, height: 44).contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+            }.buttonStyle(PressFeedbackStyle()).accessibilityLabel("\(task.title)を\(task.isCompleted ? "未完了に戻す" : "完了にする")")
             Button(action: edit) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(task.title).font(.body).strikethrough(task.isCompleted).foregroundStyle(task.isCompleted ? Color.secondary : Color.primary).multilineTextAlignment(.leading)
                     if showDate, let date = task.date { Text(date, format: .dateTime.month().day()).font(.caption).foregroundStyle(.secondary) }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 11)
-            }.buttonStyle(.plain)
+            }.buttonStyle(PressFeedbackStyle()).accessibilityIdentifier("task.item.\(task.title)")
             if task.isPriority { Image(systemName: "star").font(.caption).foregroundStyle(.secondary) }
             if task.repeatsDaily { Image(systemName: "repeat").font(.caption).foregroundStyle(.secondary) }
         }.padding(.vertical, 1).overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 0.5) }
+            .modifier(TaskContextActions(task: task, edit: edit))
+            .sensoryFeedback(.selection, trigger: task.isCompleted)
     }
 }
 
 struct EventRow: View {
     @EnvironmentObject private var store: PlannerStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var task: PlannerTask
     var edit: () -> Void
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { _ in row }
+            .modifier(TaskContextActions(task: task, edit: edit))
+            .sensoryFeedback(.selection, trigger: task.isCompleted)
     }
     private var row: some View {
         HStack(alignment: .center, spacing: 14) {
-            Button { store.toggleTask(task) } label: {
+            Button { withAnimation(InteractionMotion.animation(reduceMotion: reduceMotion)) { _ = store.toggleTask(task) } } label: {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 22, weight: .light)).frame(width: 28, height: 44)
-            }.buttonStyle(.plain).foregroundStyle(task.isCompleted ? Color.primary : .secondary)
+                    .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+            }.buttonStyle(PressFeedbackStyle()).foregroundStyle(task.isCompleted ? Color.primary : .secondary)
                 .accessibilityLabel("\(task.title)を\(task.isCompleted ? "未完了に戻す" : "完了にする")")
             Button(action: edit) {
                 HStack(alignment: .top, spacing: 14) {
@@ -154,7 +178,7 @@ struct EventRow: View {
                         } else if task.isOverdue() { Text("未完了・予定時刻を経過").font(.caption).foregroundStyle(Theme.holiday) }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.multilineTextAlignment(.leading).padding(.vertical, 14)
-            }.buttonStyle(.plain)
+            }.buttonStyle(PressFeedbackStyle()).accessibilityIdentifier("event.item.\(task.title)")
         }.overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 0.5) }
     }
 }

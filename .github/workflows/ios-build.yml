@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+  DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
 
 jobs:
   simulator:
@@ -40,7 +40,7 @@ jobs:
       - name: Unit tests, UI tests, and screenshots
         env:
           SIMULATOR_NAME: ${{ matrix.device }}
-          SIMULATOR_RUNTIME: iOS-18-5
+          SIMULATOR_RUNTIME: iOS-26-2
         run: bash scripts/ci-test.sh
       - name: Upload test results and screenshots
         if: always()
@@ -50,6 +50,7 @@ jobs:
           path: |
             build/*.xcresult
             build/*.log
+            build/test-summary-*.json
             build/screenshots/
             build/WEEKNOTE-simulator-*.zip
           retention-days: 30

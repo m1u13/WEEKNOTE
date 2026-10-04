@@ -21,12 +21,14 @@ struct SettingsView: View {
     @State private var confirmSample = false
     @State private var message: String?
     @State private var error: String?
+    @State private var showHeaderSettings = false
 
     var body: some View {
         List {
             Section("表示") {
                 Picker("外観", selection: $appearance) { Text("端末設定").tag("system"); Text("ライト").tag("light"); Text("ダーク").tag("dark") }
                     .pickerStyle(.segmented).accessibilityIdentifier("appearance.picker")
+                Button { showHeaderSettings = true } label: { Label("見出しの表示", systemImage: "calendar.badge.clock") }.accessibilityIdentifier("header.settings.open")
             }
             Section("データ") {
                 Button { do { document = PlannerBackupDocument(data: try store.exportJSON()); showExport = true } catch { self.error = error.localizedDescription } } label: { Label("バックアップを書き出す", systemImage: "square.and.arrow.up") }
@@ -46,8 +48,9 @@ struct SettingsView: View {
             } footer: { Text("データはこの端末に保存されます。端末を移行する前にバックアップを書き出してください。").font(.caption) }
             if let message { Section { Text(message).font(.subheadline) } }
             if let error = error ?? store.errorMessage { Section { Text(error).font(.subheadline).foregroundStyle(.red) } }
-            Section { LabeledContent("WEEKNOTE", value: "1.0") }
+            Section { LabeledContent("WEEKNOTE", value: "1.1") }
         }.scrollContentBackground(.hidden).background(Theme.background).navigationTitle("設定")
+            .sheet(isPresented: $showHeaderSettings) { HeaderDisplaySettingsView() }
             .fileExporter(isPresented: $showExport, document: document, contentType: .json, defaultFilename: "weeknote-\(CalendarSupport.dayKey(Date()))") { result in
                 switch result { case .success: message = "バックアップを保存しました。"; error = nil; case .failure(let failure): error = failure.localizedDescription }
             }

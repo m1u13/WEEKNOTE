@@ -4,9 +4,9 @@ WEEKNOTEはSwiftUIで実装したiOSアプリです。対応OSはiOS 17以降、
 
 ## GitHub Actionsで生成するファイル
 
-`iOS build and tests` はmainへのpush、Pull Request、手動実行で動きます。macOS 15とXcode 16.4を指定し、次の処理を実行します。
+`iOS build and tests` はmainへのpush、Pull Request、手動実行で動きます。macOS 15とXcode 26.3を指定し、次の処理を実行します。
 
-- iPhone 16とiPhone SE（第3世代）、iOS 18.5でユニットテストとUIテストを実行。
+- iPhone 16とiPhone SE（第3世代）、iOS 26.2でユニットテストとUIテストを実行。
 - ライト・ダーク表示のスクリーンショット、UIテストの画面添付、実行ログ、`.xcresult` を保存。
 - シミュレーター用の `.app` をZIP形式で保存。
 - 実機向けReleaseビルドを `WEEKNOTE-unsigned.ipa` にまとめ、内容とSHA-256を確認。
@@ -15,7 +15,7 @@ GitHubリポジトリの **Actions → 実行結果 → Artifacts** からダウ
 
 **`WEEKNOTE-unsigned.ipa` は未署名です。このファイルをそのまま通常のiPhoneにインストールすることはできません。** 実機利用にはAppleの証明書とプロビジョニングプロファイルによる署名が必要です。シミュレーター版はMac上のiOS Simulatorで動作します。
 
-GitHubの[macOS 15ランナー一覧](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md)で、Xcode 16.4、Xcode 26.3、使用するシミュレーターの提供を確認しています。ランナー更新で指定バージョンが提供されなくなった場合は、ワークフローの `DEVELOPER_DIR` と `SIMULATOR_RUNTIME` を一覧に合わせて更新してください。
+GitHubの[macOS 15ランナー一覧](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md)で、Xcode 26.3、iOS 26.2シミュレーターの提供を確認しています。ランナー更新で指定バージョンが提供されなくなった場合は、ワークフローの `DEVELOPER_DIR` と `SIMULATOR_RUNTIME` を一覧に合わせて更新してください。
 
 ## Macで開く
 
@@ -32,8 +32,8 @@ XcodeでWEEKNOTEスキームとiPhone Simulatorを選択して実行します。
 CIと同じテストをMacで実行する例です。指定したシミュレーターランタイムがインストールされている必要があります。
 
 ```bash
-export DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer
-SIMULATOR_NAME="iPhone 16" SIMULATOR_RUNTIME=iOS-18-5 bash scripts/ci-test.sh
+export DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer
+SIMULATOR_NAME="iPhone 16" SIMULATOR_RUNTIME=iOS-26-2 bash scripts/ci-test.sh
 ```
 
 テスト成果物は `build/` に作成します。同じ場所に既存の `.xcresult` がある場合は別の保存先に退避してから実行してください。`--uitesting` 起動時はサンプルデータを入れたテスト用保存先を使用します。
@@ -49,7 +49,7 @@ xcrun simctl launch booted com.m1u13.weeknote
 
 `Signed iOS IPA` は **mainブランチで手動実行** します。自動でApp Store Connectへアップロードする処理は含めていません。Xcode 26.3でアーカイブし、指定した配布方法に合わせて署名済みIPAを出力します。
 
-2026年4月28日以降、App Store ConnectへのアップロードにはXcode 26以降とiOS 26 SDK以降が必要です。通常の未署名ビルドで使うXcode 16.4と、ストア提出用の署名ワークフローのXcodeを分けています。[AppleのSDK要件](https://developer.apple.com/news/upcoming-requirements/?id=04282026a)
+2026年4月28日以降、App Store ConnectへのアップロードにはXcode 26以降とiOS 26 SDK以降が必要です。通常の未署名ビルドと署名ワークフローはどちらもXcode 26.3を使います。アプリの対応OSはiOS 17以降です。[AppleのSDK要件](https://developer.apple.com/news/upcoming-requirements/?id=04282026a)
 
 リポジトリの **Settings → Secrets and variables → Actions → New repository secret** に以下を登録します。証明書、秘密鍵、プロファイルはソースコードに保存しないでください。
 

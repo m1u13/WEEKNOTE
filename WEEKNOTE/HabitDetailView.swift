@@ -33,6 +33,7 @@ private struct HabitBar: Identifiable { let date: Date; let minutes: Int; var id
 struct HabitDetailView: View {
     @EnvironmentObject private var store: PlannerStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var timer = HabitTimer.shared
     var habitID: UUID
     @State private var period: HabitPeriod = .week
@@ -41,15 +42,14 @@ struct HabitDetailView: View {
     @State private var minutes = 15
     @State private var showEditor = false
     @State private var error: String?
+    @State private var pageDirection = 1
+    @State private var pendingLogDeletion: HabitLog?
     private var habit: Habit? { store.data.habits.first { $0.id == habitID } }
     private var days: [Date] {
         switch period {
         case .week: return CalendarSupport.weekDays(containing: reference)
         case .month: return CalendarSupport.monthDays(reference)
-        case .year:
-            let start = CalendarSupport.calendar.date(from: CalendarSupport.calendar.dateComponents([.year], from: reference))!
-            let count = CalendarSupport.calendar.range(of: .day, in: .year, for: reference)?.count ?? 365
-            return (0..<count).map { CalendarSupport.addingDays($0, to: start) }
+        case .year: return HabitHistoryCalendar.yearDays(containing: reference)
         }
     }
     private var bars: [HabitBar] {
@@ -85,20 +85,25 @@ struct HabitDetailView: View {
                             Spacer()
                         }
                         Picker("期間", selection: $period) { ForEach(HabitPeriod.allCases) { Text($0.rawValue).tag($0) } }.pickerStyle(.segmented)
-                        HStack {
-                            Button { move(-1) } label: { Image(systemName: "chevron.left").frame(width: 36, height: 36) }.accessibilityLabel("前の期間")
-                            Spacer(); Text(periodLabel).font(.system(.subheadline, design: .monospaced)); Spacer()
-                            Button { move(1) } label: { Image(systemName: "chevron.right").frame(width: 36, height: 36) }.accessibilityLabel("次の期間")
-                        }
-                        Chart {
-                            ForEach(bars) { bar in
-                                BarMark(x: .value("日付", bar.date, unit: period == .year ? .month : .day), y: .value("分", bar.minutes))
-                                    .foregroundStyle(Color.primary.opacity(CalendarSupport.calendar.isDateInToday(bar.date) ? 0.9 : 0.55))
-                                    .cornerRadius(4)
-                            }
-                            if period != .year { RuleMark(y: .value("目標", habit.goalMinutes)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3])).foregroundStyle(Color.secondary.opacity(0.5)) }
-                        }.chartXAxis { AxisMarks(values: .automatic(desiredCount: period == .week ? 7 : 6)) { _ in AxisValueLabel(format: period == .year ? .dateTime.month(.abbreviated) : .dateTime.day(), centered: true) } }
-                            .chartYAxis { AxisMarks(position: .leading) }.frame(height: 170).accessibilityIdentifier("habit.chart")
+                            .accessibilityIdentifier("habit.period")
+                        VStack(spacing: 18) {
+                            Text(periodLabel).font(.system(.subheadline, design: .monospaced)).contentTransition(.numericText())
+                                .frame(maxWidth: .infinity).padding(.vertical, 8).contentShape(Rectangle())
+                                .accessibilityIdentifier("habit.period.label")
+                                .contextMenu {
+                                    Button("前の期間") { move(-1) }
+                                    Button("次の期間") { move(1) }
+                                    Button("現在の期間") { withAnimation(InteractionMotion.animation(reduceMotion: reduceMotion)) { reference = Date() } }
+                                }
+                            ZStack {
+                                periodChart(habit: habit)
+                                    .id("\(period.id)-\(CalendarSupport.dayKey(reference))")
+                                    .transition(InteractionMotion.pageTransition(direction: pageDirection, reduceMotion: reduceMotion))
+                            }.frame(height: 170).clipped()
+                        }.contentShape(Rectangle()).horizontalPageSwipe { move($0) }
+                            .accessibilityIdentifier("habit.period.navigation")
+                            .accessibilityAction(named: Text("次の期間")) { move(1) }
+                            .accessibilityAction(named: Text("前の期間")) { move(-1) }
                         HStack(spacing: 10) {
                             metric("合計", value: total, unit: "分")
                             metric("達成日", value: achievedDays, unit: "日")
@@ -109,13 +114,19 @@ struct HabitDetailView: View {
                             DatePicker("日付", selection: $logDate, in: ...Date(), displayedComponents: .date).font(.subheadline)
                             HStack {
                                 Stepper("\(minutes)分", value: $minutes, in: 1...1440, step: 5).font(.subheadline)
-                                Button("記録") { if store.addHabitLog(habitID: habitID, date: logDate, minutes: minutes) { error = nil } else { error = store.errorMessage } }
+                                Button("記録") {
+                                    withAnimation(InteractionMotion.animation(reduceMotion: reduceMotion)) {
+                                        if store.addHabitLog(habitID: habitID, date: logDate, minutes: minutes) { error = nil; InteractionMotion.selectionFeedback() }
+                                        else { error = store.errorMessage }
+                                    }
+                                }
                                     .buttonStyle(.borderedProminent).tint(.primary).foregroundStyle(Theme.background).accessibilityIdentifier("habit.record")
                             }
                         }
                         timerControls
                         if let error { Text(error).font(.subheadline).foregroundStyle(.red) }
                         recentLogs
+                        HabitHistoryView(habitID: habitID, referenceDate: reference) { logDate = $0 }
                     }.padding(24)
                 }.background(Theme.background).navigationTitle(habit.name).navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -123,15 +134,42 @@ struct HabitDetailView: View {
                         ToolbarItem(placement: .topBarTrailing) { Button("編集") { showEditor = true } }
                     }
                     .sheet(isPresented: $showEditor) { HabitEditor(habit: habit).environmentObject(store) }
+                    .confirmationDialog("記録を削除", isPresented: Binding(get: { pendingLogDeletion != nil }, set: { if !$0 { pendingLogDeletion = nil } }), presenting: pendingLogDeletion) { log in
+                        Button("削除", role: .destructive) {
+                            withAnimation(InteractionMotion.animation(reduceMotion: reduceMotion)) {
+                                if store.deleteHabitLog(log) { error = nil } else { error = store.errorMessage }
+                            }
+                            pendingLogDeletion = nil
+                        }
+                        Button("キャンセル", role: .cancel) { pendingLogDeletion = nil }
+                    } message: { log in
+                        Text("\(CalendarSupport.formatted(log.date, template: "yyyyMd"))の\(log.minutes)分")
+                    }
                     .onChange(of: store.data.habits) { _, habits in if !habits.contains(where: { $0.id == habitID }) { if timer.habitID == habitID { timer.reset() }; dismiss() } }
                     .accessibilityIdentifier("habit.detail")
             } else { ContentUnavailableView("習慣はありません", systemImage: "circle").toolbar { Button("閉じる") { dismiss() } } }
         }.presentationDetents([.large]).presentationDragIndicator(.visible)
     }
 
+    private func periodChart(habit: Habit) -> some View {
+        Chart {
+            ForEach(bars) { bar in
+                BarMark(x: .value("日付", bar.date, unit: period == .year ? .month : .day), y: .value("分", bar.minutes))
+                    .foregroundStyle(Color.primary.opacity(CalendarSupport.calendar.isDateInToday(bar.date) ? 0.9 : 0.55))
+                    .cornerRadius(4)
+            }
+            if period != .year { RuleMark(y: .value("目標", habit.goalMinutes)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3])).foregroundStyle(Color.secondary.opacity(0.5)) }
+        }.chartXAxis { AxisMarks(values: .automatic(desiredCount: period == .week ? 7 : 6)) { _ in AxisValueLabel(format: period == .year ? .dateTime.month(.abbreviated) : .dateTime.day(), centered: true) } }
+            .chartYAxis { AxisMarks(position: .leading) }.frame(height: 170).accessibilityIdentifier("habit.chart")
+    }
+
     private func metric(_ label: String, value: Int, unit: String) -> some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 3) { Text("\(value)").font(Theme.heading(30)); Text(unit).font(.caption).foregroundStyle(.secondary) }
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text("\(value)").font(Theme.heading(30)).contentTransition(.numericText())
+                    .animation(InteractionMotion.animation(reduceMotion: reduceMotion), value: value)
+                Text(unit).font(.caption).foregroundStyle(.secondary)
+            }
             Text(label).font(.caption2).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -171,17 +209,24 @@ struct HabitDetailView: View {
                 HStack {
                     Text(log.date.formatted(.dateTime.month().day().weekday())).font(.subheadline)
                     Spacer(); Text("\(log.minutes)分").font(.system(.subheadline, design: .monospaced))
-                    Button { _ = store.deleteHabitLog(log) } label: { Image(systemName: "trash").font(.caption).frame(width: 32, height: 32) }.foregroundStyle(.secondary).accessibilityLabel("\(log.date.formatted(.dateTime.month().day()))の\(log.minutes)分を削除")
+                    Button { pendingLogDeletion = log } label: { Image(systemName: "trash").font(.caption).frame(width: 32, height: 32) }.foregroundStyle(.secondary).accessibilityLabel("\(log.date.formatted(.dateTime.month().day()))の\(log.minutes)分を削除")
                 }.padding(.vertical, 7).overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 0.5) }
+                    .contentShape(Rectangle()).contextMenu {
+                        Button { logDate = log.date } label: { Label("この日を記録", systemImage: "plus") }
+                        Button(role: .destructive) { pendingLogDeletion = log } label: { Label("削除", systemImage: "trash") }
+                    }
             }
             if logs.isEmpty { Text("記録はありません").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 14) }
         }
     }
     private func move(_ amount: Int) {
-        switch period {
-        case .week: reference = CalendarSupport.addingDays(amount * 7, to: reference)
-        case .month: reference = CalendarSupport.addingMonths(amount, to: reference)
-        case .year: reference = CalendarSupport.addingMonths(amount * 12, to: reference)
+        withAnimation(InteractionMotion.animation(reduceMotion: reduceMotion)) {
+            pageDirection = amount
+            switch period {
+            case .week: reference = CalendarSupport.addingDays(amount * 7, to: reference)
+            case .month: reference = CalendarSupport.addingMonths(amount, to: reference)
+            case .year: reference = CalendarSupport.addingMonths(amount * 12, to: reference)
+            }
         }
     }
 }

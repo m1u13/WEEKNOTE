@@ -9,6 +9,7 @@ struct WEEKNOTEApp: App {
         let testing = ProcessInfo.processInfo.arguments.contains("--uitesting")
         if testing {
             UserDefaults.standard.set("system", forKey: "appearance")
+            if !ProcessInfo.processInfo.arguments.contains("--preserve-header") { UserDefaults.standard.removeObject(forKey: HeaderDisplayPreference.storageKey) }
             HabitTimer.shared.reset()
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("weeknote-ui-tests.json")
             let value = PlannerStore(fileURL: url)

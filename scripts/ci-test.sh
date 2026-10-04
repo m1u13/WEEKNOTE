@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 device_name="${SIMULATOR_NAME:-iPhone 16}"
-runtime_suffix="${SIMULATOR_RUNTIME:-iOS-18-5}"
+runtime_suffix="${SIMULATOR_RUNTIME:-iOS-26-2}"
 device_slug="$(printf '%s' "$device_name" | tr -cd '[:alnum:]')"
 mkdir -p build
 xcrun simctl list devices available --json > build/simulators.json
@@ -38,6 +38,9 @@ test_status=$?
 set -e
 mkdir -p "build/screenshots/$device_slug"
 if [[ -d "$result_path" ]]; then
+  xcrun xcresulttool get test-results summary \
+    --path "$result_path" \
+    --compact > "build/test-summary-$device_slug.json" || echo "No test summary could be exported. See the xcresult bundle."
   xcrun xcresulttool export attachments \
     --path "$result_path" \
     --output-path "build/screenshots/$device_slug/test-attachments" || echo "No test attachments could be exported. See the xcresult bundle."
