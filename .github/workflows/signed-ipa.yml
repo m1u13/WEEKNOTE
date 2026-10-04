@@ -54,4 +54,3 @@ jobs:
       - name: Clean signing material
         if: always()
         run: bash scripts/cleanup-signing.sh
-

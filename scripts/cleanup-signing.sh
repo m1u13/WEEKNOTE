@@ -13,4 +13,3 @@ if [[ -n "${IOS_PROFILE_UUID:-}" ]]; then
     rm -f "$profile_dir/$IOS_PROFILE_UUID.mobileprovision"
   done
 fi
-

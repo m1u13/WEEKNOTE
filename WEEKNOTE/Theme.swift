@@ -103,7 +103,7 @@ struct TaskRow: View {
     var edit: () -> Void
     var body: some View {
         HStack(spacing: 14) {
-            Button { withAnimation { store.toggleTask(task) } } label: {
+            Button { withAnimation { _ = store.toggleTask(task) } } label: {
                 Image(systemName: task.isCompleted ? "checkmark.square.fill" : "square")
                     .font(.system(size: 19, weight: .light)).foregroundStyle(task.isCompleted ? Color.primary.opacity(0.7) : Color.secondary.opacity(0.6))
                     .frame(width: 28, height: 44)

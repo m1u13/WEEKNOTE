@@ -89,4 +89,3 @@ Ad Hoc/開発用IPAは、プロファイルに登録したiPhoneにXcodeの **Wi
 - 本文と日本語表示はシステムフォントを使用します。見出し用のAntonは `WEEKNOTE/Resources/Fonts/Anton-Regular.ttf` に同梱し、`Info.plist` の `UIAppFonts` で登録しています。XcodeGenの通常のリソースコピーではファイルがアプリバンドル直下に置かれるため、登録値はファイル名のみです。フォントのライセンスは同じフォルダの `OFL.txt` に保存しています。
 - タスク・予定・習慣の記録は端末内に保存します。JSONバックアップはアプリの設定から書き出し・読み込みを行います。Web版のブラウザー保存データとは保存先が異なります。
 - `PrivacyInfo.xcprivacy` では追跡・収集データなしと、アプリ自身の設定を保存するUserDefaultsの利用理由を宣言しています。外部送信やSDKを追加する際は、実際の機能に合わせて更新してください。[Appleのプライバシーマニフェスト](https://developer.apple.com/documentation/bundleresources/privacy-manifest-files)
-

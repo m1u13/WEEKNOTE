@@ -36,4 +36,3 @@ done
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   printf '### Signed IPA\n\nExported with `%s`. The artifact contains the signed IPA and checksum.\n' "$EXPORT_METHOD" >> "$GITHUB_STEP_SUMMARY"
 fi
-

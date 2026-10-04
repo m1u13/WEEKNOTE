@@ -29,4 +29,3 @@ with zipfile.ZipFile(args.ipa) as archive:
             if prefix + resource not in names:
                 raise SystemExit("Signed IPA resource missing: " + resource)
     print(f"Verified {args.ipa}: {info['CFBundleIdentifier']} / iOS {info['MinimumOSVersion']}")
-

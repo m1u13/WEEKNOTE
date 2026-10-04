@@ -8,4 +8,3 @@ fi
 xcodegen --version
 xcodegen generate --spec project.yml
 plutil -lint WEEKNOTE/Info.plist WEEKNOTE/Resources/PrivacyInfo.xcprivacy
-

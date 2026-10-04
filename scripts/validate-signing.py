@@ -49,4 +49,3 @@ export_options = {
 }
 (signing_dir / "ExportOptions.plist").write_bytes(plistlib.dumps(export_options))
 print("Signing certificate, app identifier, team, and provisioning profile are valid for " + method)
-

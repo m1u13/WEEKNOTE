@@ -36,4 +36,3 @@ TEXT
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   printf '### Unsigned IPA\n\n`WEEKNOTE-unsigned.ipa` was built for iOS devices. It requires Apple signing before installation on an iPhone. See `docs/BUILD.md`.\n' >> "$GITHUB_STEP_SUMMARY"
 fi
-

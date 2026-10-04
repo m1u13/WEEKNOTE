@@ -6,3 +6,4 @@
 *.json text eol=lf
 *.plist text eol=lf
 *.xcprivacy text eol=lf
+WEEKNOTE/Resources/Fonts/OFL.txt whitespace=-blank-at-eol

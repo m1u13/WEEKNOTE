@@ -30,4 +30,3 @@ for profile_dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Lib
   mkdir -p "$profile_dir"
   cp "$signing_dir/profile.mobileprovision" "$profile_dir/$profile_uuid.mobileprovision"
 done
-
