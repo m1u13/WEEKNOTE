@@ -20,6 +20,7 @@ struct HabitContextActions: ViewModifier {
                     if HabitTimer.shared.habitID == habit.id { HabitTimer.shared.reset() }
                 } else { showError = true }
             }
+            Button("キャンセル", role: .cancel) { confirmDelete = false }
         }
         .alert("保存できませんでした", isPresented: $showError) { Button("閉じる", role: .cancel) {} } message: { Text(store.errorMessage ?? "操作をやり直してください。") }
     }
@@ -53,6 +54,7 @@ struct TaskContextActions: ViewModifier {
         }
         .confirmationDialog("「\(task.title)」を削除しますか？", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("削除", role: .destructive) { if !store.deleteTask(task) { showError = true } }
+            Button("キャンセル", role: .cancel) { confirmDelete = false }
         }
         .alert("保存できませんでした", isPresented: $showError) { Button("閉じる", role: .cancel) {} } message: { Text(store.errorMessage ?? "操作をやり直してください。") }
     }
@@ -76,6 +78,7 @@ struct ListContextActions: ViewModifier {
         }
         .confirmationDialog("「\(list.name)」を削除しますか？項目は受信箱に移動します。", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("削除", role: .destructive) { if !store.deleteList(list) { showError = true } }
+            Button("キャンセル", role: .cancel) { confirmDelete = false }
         }
         .alert("保存できませんでした", isPresented: $showError) { Button("閉じる", role: .cancel) {} } message: { Text(store.errorMessage ?? "操作をやり直してください。") }
     }
@@ -97,6 +100,7 @@ struct LinkContextActions: ViewModifier {
         }
         .confirmationDialog("「\(link.title)」を削除しますか？", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("削除", role: .destructive) { if !store.deleteLink(link) { showError = true } }
+            Button("キャンセル", role: .cancel) { confirmDelete = false }
         }
         .alert("保存できませんでした", isPresented: $showError) { Button("閉じる", role: .cancel) {} } message: { Text(store.errorMessage ?? "操作をやり直してください。") }
     }

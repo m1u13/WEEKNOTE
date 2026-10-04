@@ -147,10 +147,15 @@ struct HabitDetailView: View {
                     } message: { log in
                         Text("\(CalendarSupport.formatted(log.date, template: "yyyyMd"))の\(log.minutes)分")
                     }
-                    .onChange(of: store.data.habits) { _, habits in if !habits.contains(where: { $0.id == habitID }) { if timer.habitID == habitID { timer.reset() }; dismiss() } }
                     .accessibilityIdentifier("habit.detail")
             } else { ContentUnavailableView("習慣はありません", systemImage: "circle").toolbar { Button("閉じる") { dismiss() } } }
         }.presentationDetents([.large]).presentationDragIndicator(.visible)
+            .onChange(of: store.data.habits) { _, habits in
+                if !habits.contains(where: { $0.id == habitID }) {
+                    if timer.habitID == habitID { timer.reset() }
+                    dismiss()
+                }
+            }
     }
 
     private func periodChart(habit: Habit) -> some View {

@@ -258,7 +258,7 @@ struct MonthGrid: View {
                         .opacity(sameMonth ? 1 : 0.3).frame(maxWidth: .infinity).frame(minHeight: 51)
                         .background(selected ? Color.primary.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 9))
                         .overlay { RoundedRectangle(cornerRadius: 9).stroke(CalendarSupport.calendar.isDateInToday(date) ? Color.primary.opacity(0.3) : .clear, lineWidth: 1) }
-                }.buttonStyle(PressFeedbackStyle()).accessibilityLabel(date.formatted(.dateTime.month().day().weekday()) + (holiday.map { " \($0)" } ?? ""))
+                }.buttonStyle(.plain).accessibilityLabel(date.formatted(.dateTime.month().day().weekday()) + (holiday.map { " \($0)" } ?? ""))
                     .accessibilityAddTraits(selected ? [.isSelected] : [])
                     .contextMenu {
                         if let addItem {
@@ -314,7 +314,7 @@ struct ProgressViewScreen: View {
                         let total = days.reduce(0) { $0 + store.habitMinutes(habit, on: $1) }
                         Button { showHabit(habit) } label: {
                             HStack(spacing: 14) { Image(systemName: habit.symbol).frame(width: 28); Text(habit.name); Spacer(); Text("\(total)分").font(.system(.body, design: .monospaced)); Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary) }.padding(.vertical, 15)
-                        }.buttonStyle(PressFeedbackStyle()).overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 0.5) }
+                        }.buttonStyle(.plain).overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 0.5) }
                             .modifier(HabitContextActions(habit: habit, open: { showHabit(habit) }, edit: { editHabit(habit) }))
                     }
                 }
@@ -352,6 +352,7 @@ struct ListsView: View {
 
 struct ListDetailView: View {
     @EnvironmentObject private var store: PlannerStore
+    @Environment(\.dismiss) private var dismiss
     var listID: UUID
     var showSheet: (EditorSheet) -> Void
     private var list: PlannerList? { store.data.lists.first { $0.id == listID } }
@@ -371,6 +372,9 @@ struct ListDetailView: View {
             }.padding(24)
         }.background(Theme.background).navigationTitle(list?.name ?? "リスト")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { showSheet(.list(list)) } label: { Image(systemName: "ellipsis") }.accessibilityLabel("リストを編集") } }
+            .onChange(of: store.data.lists) { _, lists in
+                if !lists.contains(where: { $0.id == listID }) { dismiss() }
+            }
     }
 }
 

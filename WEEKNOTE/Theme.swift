@@ -131,7 +131,7 @@ struct TaskRow: View {
                     Text(task.title).font(.body).strikethrough(task.isCompleted).foregroundStyle(task.isCompleted ? Color.secondary : Color.primary).multilineTextAlignment(.leading)
                     if showDate, let date = task.date { Text(date, format: .dateTime.month().day()).font(.caption).foregroundStyle(.secondary) }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 11)
-            }.buttonStyle(PressFeedbackStyle()).accessibilityIdentifier("task.item.\(task.title)")
+            }.buttonStyle(.plain).accessibilityIdentifier("task.item.\(task.title)")
             if task.isPriority { Image(systemName: "star").font(.caption).foregroundStyle(.secondary) }
             if task.repeatsDaily { Image(systemName: "repeat").font(.caption).foregroundStyle(.secondary) }
         }.padding(.vertical, 1).overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 0.5) }
@@ -178,7 +178,7 @@ struct EventRow: View {
                         } else if task.isOverdue() { Text("未完了・予定時刻を経過").font(.caption).foregroundStyle(Theme.holiday) }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.multilineTextAlignment(.leading).padding(.vertical, 14)
-            }.buttonStyle(PressFeedbackStyle()).accessibilityIdentifier("event.item.\(task.title)")
+            }.buttonStyle(.plain).accessibilityIdentifier("event.item.\(task.title)")
         }.overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 0.5) }
     }
 }

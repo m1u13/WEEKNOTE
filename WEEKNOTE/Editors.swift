@@ -70,6 +70,7 @@ struct TaskEditor: View {
             }
             .confirmationDialog("この項目を削除しますか？", isPresented: $showDelete, titleVisibility: .visible) {
                 Button("削除", role: .destructive) { if store.deleteTask(draft) { dismiss() } else { error = store.errorMessage } }
+                Button("キャンセル", role: .cancel) { showDelete = false }
             }
             .onChange(of: draft.kind) { _, value in if value == .event { hasDate = true } }
             .onChange(of: draft.isCompleted) { _, _ in draft.completedAt = nil; draft.completionDateOnly = false }
@@ -131,6 +132,7 @@ struct HabitEditor: View {
                             dismiss()
                         } else { error = store.errorMessage }
                     }
+                    Button("キャンセル", role: .cancel) { showDelete = false }
                 }
         }.presentationDetents([.large]).presentationDragIndicator(.visible)
     }
@@ -172,7 +174,11 @@ struct ListEditor: View {
                     ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                     ToolbarItem(placement: .confirmationAction) { Button("保存") { if store.saveList(draft) { dismiss() } else { error = store.errorMessage } }.bold().accessibilityIdentifier("editor.save") }
                 }
-                .confirmationDialog("このリストを削除しますか？", isPresented: $showDelete, titleVisibility: .visible) { Button("削除", role: .destructive) { if store.deleteList(draft) { dismiss() } else { error = store.errorMessage } } }
+                .confirmationDialog("このリストを削除しますか？", isPresented: $showDelete, titleVisibility: .visible) {
+                    Button("削除", role: .destructive) { if store.deleteList(draft) { dismiss() } else { error = store.errorMessage } }
+                        .accessibilityIdentifier("list.delete.confirm")
+                    Button("キャンセル", role: .cancel) { showDelete = false }
+                }
         }.presentationDetents([.large]).presentationDragIndicator(.visible)
     }
 }
@@ -206,7 +212,10 @@ struct LinkEditor: View {
                     ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                     ToolbarItem(placement: .confirmationAction) { Button("保存") { if store.saveLink(draft) { dismiss() } else { error = store.errorMessage } }.bold().accessibilityIdentifier("editor.save") }
                 }
-                .confirmationDialog("このリンクを削除しますか？", isPresented: $showDelete, titleVisibility: .visible) { Button("削除", role: .destructive) { if store.deleteLink(draft) { dismiss() } else { error = store.errorMessage } } }
+                .confirmationDialog("このリンクを削除しますか？", isPresented: $showDelete, titleVisibility: .visible) {
+                    Button("削除", role: .destructive) { if store.deleteLink(draft) { dismiss() } else { error = store.errorMessage } }
+                    Button("キャンセル", role: .cancel) { showDelete = false }
+                }
         }.presentationDetents([.large]).presentationDragIndicator(.visible)
     }
 }

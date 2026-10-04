@@ -37,8 +37,20 @@ final class PlannerUITests: XCTestCase {
         let completion = app.buttons[taskName + "を完了にする"]
         reveal(completion, in: "screen.week")
         XCTAssertTrue(completion.isHittable)
+        let task = element("task.item." + taskName)
+        XCTAssertTrue(task.isHittable)
+        task.press(forDuration: 1)
+        XCTAssertTrue(app.buttons["削除"].waitForExistence(timeout: 5), "Long pressing should show the task context menu")
+        XCTAssertTrue(app.buttons["完了にする"].exists)
+        XCTAssertFalse(editor.exists, "Long pressing should keep the task menu open without opening the editor")
+        capture("task-context-menu")
+        tapMenuAction("完了にする")
+        let completed = app.buttons[taskName + "を未完了に戻す"]
+        XCTAssertTrue(completed.waitForExistence(timeout: 5))
+        completed.tap()
+        XCTAssertTrue(completion.waitForExistence(timeout: 5))
         completion.tap()
-        XCTAssertTrue(app.buttons[taskName + "を未完了に戻す"].waitForExistence(timeout: 5))
+        XCTAssertTrue(completed.waitForExistence(timeout: 5))
         capture("task-completed")
     }
 
@@ -198,7 +210,14 @@ final class PlannerUITests: XCTestCase {
         let confirmation = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "読書", "すべての記録")).firstMatch
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
         capture("habit-delete-confirmation")
-        app.buttons["キャンセル"].tap()
+        let cancel = app.buttons["キャンセル"]
+        if cancel.exists {
+            cancel.tap()
+        } else {
+            // iOS 26 presents this confirmation as an anchored popover.
+            // Tapping outside it is the native cancellation operation.
+            app.staticTexts["WEEKNOTE"].tap()
+        }
         waitUntil("Cancelling deletion should retain the habit") { !confirmation.exists && habit.isHittable }
         habit.tap()
         XCTAssertTrue(element("habit.detail").waitForExistence(timeout: 5))
@@ -241,6 +260,50 @@ final class PlannerUITests: XCTestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         XCTAssertEqual(element("editor.selectedSymbolName").label, "ランニング")
         capture("list-icon-saved")
+        app.buttons["キャンセル"].tap()
+        waitUntil("Cancelling the editor should return to the list") { !editor.exists && list.isHittable }
+        list.tap()
+        let detailEdit = app.buttons["リストを編集"]
+        XCTAssertTrue(detailEdit.waitForExistence(timeout: 5))
+        capture("list-detail")
+        detailEdit.tap()
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        let delete = editor.buttons["削除"]
+        reveal(delete, in: "editor.list")
+        XCTAssertTrue(delete.isHittable)
+        delete.tap()
+        let confirmation = app.staticTexts["このリストを削除しますか？"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        capture("list-detail-delete-confirmation")
+        let confirmDelete = element("list.delete.confirm")
+        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
+        confirmDelete.tap()
+        let addList = element("list.add")
+        waitUntil("Deleting the open list should dismiss its editor and return to the list screen") {
+            !editor.exists && addList.isHittable && !detailEdit.exists
+        }
+        XCTAssertFalse(list.exists)
+        capture("list-deleted-returned")
+    }
+
+    func testProgressWeekSwipesWithoutBlockingVerticalScrolling() {
+        openTab("進捗")
+        let week = element("progress.week")
+        let label = element("progress.weekLabel")
+        XCTAssertTrue(week.waitForExistence(timeout: 5))
+        XCTAssertTrue(label.waitForExistence(timeout: 5))
+        let initialLabel = label.label
+        week.swipeLeft()
+        waitUntil("A left swipe should show the next progress week") { label.label != initialLabel }
+        capture("progress-week-next")
+        week.swipeRight()
+        waitUntil("A right swipe should restore the progress week") { label.label == initialLabel }
+        capture("progress-week-restored")
+        let initialY = label.frame.minY
+        week.swipeUp()
+        waitUntil("Vertical dragging on the progress card should scroll the screen") { label.frame.minY < initialY - 20 }
+        XCTAssertEqual(label.label, initialLabel, "Vertical scrolling must retain the progress week")
+        capture("progress-vertical-scroll")
     }
 
     func testCalendarSwipesMonthsWithoutBlockingVerticalScrolling() {
@@ -330,6 +393,8 @@ final class PlannerUITests: XCTestCase {
         element("header.configure").tap()
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         XCTAssertEqual(title.value as? String, "UI goal")
+        reveal(date, in: "header.settings")
+        XCTAssertTrue(date.exists)
         if let savedDate { XCTAssertEqual(date.value as? String, savedDate) }
         capture("header-deadline-restored")
     }
