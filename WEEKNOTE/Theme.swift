@@ -1,11 +1,11 @@
 import SwiftUI
 
 enum Theme {
-    static let background = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.075, green: 0.08, blue: 0.07, alpha: 1) : UIColor(red: 0.98, green: 0.985, blue: 0.97, alpha: 1) })
+    static let background = Color(uiColor: UIColor { UIColor(white: $0.userInterfaceStyle == .dark ? 0.075 : 0.98, alpha: 1) })
     static let surface = Color(uiColor: .secondarySystemGroupedBackground)
     static let subtle = Color.primary.opacity(0.045)
     static let line = Color.primary.opacity(0.1)
-    static let accent = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.35, green: 0.78, blue: 0.51, alpha: 1) : UIColor(red: 0.17, green: 0.48, blue: 0.28, alpha: 1) })
+    static let accent = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? .white : .black })
     static let holiday = Color(red: 0.76, green: 0.25, blue: 0.22)
     static func heading(_ size: CGFloat = 64) -> Font { .custom("Anton-Regular", size: size, relativeTo: .largeTitle) }
 }

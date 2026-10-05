@@ -290,31 +290,46 @@ final class PlannerUITests: XCTestCase {
         capture("list-deleted-returned")
     }
 
-    func testThreeTabsAndManagementPanelsReturnToCurrentTab() {
-        XCTAssertEqual(app.tabBars.buttons.count, 3)
-        XCTAssertFalse(app.tabBars.buttons["リスト"].exists)
-        XCTAssertFalse(app.tabBars.buttons["設定"].exists)
-        capture("navigation-three-tabs")
+    func testFiveTabsAndListEditingReturnToOriginalTab() {
+        XCTAssertEqual(app.tabBars.buttons.count, 5)
+        capture("navigation-five-tabs")
 
-        for name in ["今週", "カレンダー", "進捗"] {
+        let destinations = [
+            ("今週", "screen.week"),
+            ("カレンダー", "calendar.month"),
+            ("進捗", "progress.week"),
+            ("リスト", "list.add"),
+            ("設定", "appearance.picker")
+        ]
+        for (name, identifier) in destinations {
+            XCTAssertTrue(app.tabBars.buttons[name].exists, "All five destinations should be available in the tab bar")
             openTab(name)
             XCTAssertTrue(app.tabBars.buttons[name].isSelected)
-            XCTAssertTrue(element("navigation.menu").isHittable)
-            openTab("リスト")
-            XCTAssertTrue(element("list.add").waitForExistence(timeout: 5))
-            XCTAssertTrue(element("list.item.仕事").exists)
-            XCTAssertTrue(managementClose.isHittable)
-            capture("navigation-lists-from-\(name)")
-            closeManagementPanel()
-            XCTAssertTrue(app.tabBars.buttons[name].isSelected, "Closing Lists should return to the previously selected tab")
-
-            openTab("設定")
-            XCTAssertTrue(element("appearance.picker").waitForExistence(timeout: 5))
-            XCTAssertTrue(managementClose.isHittable)
-            capture("navigation-settings-from-\(name)")
-            closeManagementPanel()
-            XCTAssertTrue(app.tabBars.buttons[name].isSelected, "Closing Settings should return to the previously selected tab")
+            XCTAssertTrue(element(identifier).waitForExistence(timeout: 5), "Selecting \(name) should display its own screen")
         }
+
+        openTab("リスト")
+        let list = element("list.item.仕事")
+        XCTAssertTrue(list.waitForExistence(timeout: 5))
+        list.tap()
+        let detailEdit = app.buttons["リストを編集"]
+        XCTAssertTrue(detailEdit.waitForExistence(timeout: 5))
+        detailEdit.tap()
+        let editor = element("editor.list")
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertEqual(element("list.name").value as? String, "仕事")
+        assertEditorTitleRow("list.name")
+        assertFitsScreen(editor)
+        capture("navigation-list-editor")
+        app.buttons["キャンセル"].tap()
+        waitUntil("Cancelling the list editor should return to the open list") { !editor.exists && detailEdit.isHittable }
+        XCTAssertTrue(app.tabBars.buttons["リスト"].isSelected)
+        capture("navigation-list-editor-returned")
+
+        openTab("今週")
+        XCTAssertTrue(app.tabBars.buttons["今週"].isSelected)
+        XCTAssertTrue(element("week.heading").waitForExistence(timeout: 5))
+        capture("navigation-five-tabs-returned")
     }
 
     func testProgressWeekSwipesWithoutBlockingVerticalScrolling() {
@@ -444,32 +459,10 @@ final class PlannerUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    private var managementClose: XCUIElement {
-        app.otherElements["management.close"].firstMatch
-    }
-
     private func openTab(_ name: String) {
-        closeManagementPanel()
-        if name == "リスト" || name == "設定" {
-            let menu = element("navigation.menu")
-            XCTAssertTrue(menu.waitForExistence(timeout: 5))
-            XCTAssertTrue(menu.isHittable)
-            menu.tap()
-            tapMenuAction(name)
-            XCTAssertTrue(managementClose.waitForExistence(timeout: 5))
-        } else {
-            let button = app.tabBars.buttons[name]
-            XCTAssertTrue(button.waitForExistence(timeout: 5))
-            button.tap()
-        }
-    }
-
-    private func closeManagementPanel() {
-        let close = managementClose
-        if close.exists && close.isHittable {
-            close.tap()
-            waitUntil("Closing the management panel should restore the main screen") { !close.exists }
-        }
+        let button = app.tabBars.buttons[name]
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
+        button.tap()
     }
 
     private func assertEditorTitleRow(_ titleIdentifier: String, file: StaticString = #filePath, line: UInt = #line) {

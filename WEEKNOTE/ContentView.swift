@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum AppTab: Hashable { case week, calendar, progress }
+enum AppTab: Hashable { case week, calendar, progress, lists, settings }
 enum EditorSheet: Identifiable {
     case task(PlannerTask, Bool), habit(Habit), habitEditor(Habit?), list(PlannerList?), link(SavedLink?), headerDisplay
     var id: String {
@@ -13,11 +13,6 @@ enum EditorSheet: Identifiable {
         case .headerDisplay: return "header-display"
         }
     }
-}
-
-private enum ManagementScreen: String, Identifiable {
-    case lists, settings
-    var id: String { rawValue }
 }
 
 private struct EditorDestination: View {
@@ -34,30 +29,6 @@ private struct EditorDestination: View {
     }
 }
 
-private struct ManagementPanel: View {
-    @Environment(\.dismiss) private var dismiss
-    let screen: ManagementScreen
-    @State private var sheet: EditorSheet?
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                switch screen {
-                case .lists: ListsView { sheet = $0 }
-                case .settings: SettingsView()
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") { dismiss() }.accessibilityIdentifier("management.close")
-                }
-            }
-        }
-        .sheet(item: $sheet) { EditorDestination(destination: $0) }
-        .presentationDetents([.large]).presentationDragIndicator(.visible)
-    }
-}
-
 struct ContentView: View {
     @EnvironmentObject private var store: PlannerStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -65,29 +36,20 @@ struct ContentView: View {
     @State private var selectedDay = Date()
     @State private var month = Date()
     @State private var sheet: EditorSheet?
-    @State private var management: ManagementScreen?
     @State private var search = ""
     @State private var taskFilter = 0
     @State private var monthDirection = 1
 
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack { weeklyView.toolbar { ToolbarItem(placement: .topBarTrailing) { managementMenu } } }.tabItem { Label("今週", systemImage: "checklist") }.tag(AppTab.week)
-            NavigationStack { calendarView.toolbar { ToolbarItem(placement: .topBarTrailing) { managementMenu } } }.tabItem { Label("カレンダー", systemImage: "calendar") }.tag(AppTab.calendar)
-            NavigationStack { ProgressViewScreen(selectedDay: $selectedDay, showHabit: { sheet = .habit($0) }, editHabit: { sheet = .habitEditor($0) }).toolbar { ToolbarItem(placement: .topBarTrailing) { managementMenu } } }.tabItem { Label("進捗", systemImage: "chart.bar") }.tag(AppTab.progress)
+            NavigationStack { weeklyView }.tabItem { Label("今週", systemImage: "checklist") }.tag(AppTab.week)
+            NavigationStack { calendarView }.tabItem { Label("カレンダー", systemImage: "calendar") }.tag(AppTab.calendar)
+            NavigationStack { ProgressViewScreen(selectedDay: $selectedDay, showHabit: { sheet = .habit($0) }, editHabit: { sheet = .habitEditor($0) }) }.tabItem { Label("進捗", systemImage: "chart.bar") }.tag(AppTab.progress)
+            NavigationStack { ListsView { sheet = $0 } }.tabItem { Label("リスト", systemImage: "folder") }.tag(AppTab.lists)
+            NavigationStack { SettingsView() }.tabItem { Label("設定", systemImage: "slider.horizontal.3") }.tag(AppTab.settings)
         }
         .tint(Theme.accent)
         .sheet(item: $sheet) { EditorDestination(destination: $0) }
-        .sheet(item: $management) { ManagementPanel(screen: $0) }
-    }
-
-    private var managementMenu: some View {
-        Menu {
-            Button { management = .lists } label: { Label("リスト", systemImage: "folder") }
-            Button { management = .settings } label: { Label("設定", systemImage: "slider.horizontal.3") }
-        }
-        label: { Image(systemName: "ellipsis.circle") }
-        .accessibilityLabel("リストと設定").accessibilityIdentifier("navigation.menu")
     }
 
     private var selectedTasks: [PlannerTask] { store.tasks(on: selectedDay, kind: .todo).filter(matches) }
@@ -122,6 +84,12 @@ struct ContentView: View {
         .accessibilityIdentifier("screen.week")
         .background(Theme.background)
         .navigationTitle("WEEKNOTE").navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { tab = .calendar } label: { Image(systemName: "calendar") }
+                    .accessibilityLabel("カレンダーを開く")
+            }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) { addBar(kind: .todo) }
         .searchable(text: $search, prompt: "タスクを検索")
         .scrollDismissesKeyboard(.interactively)
