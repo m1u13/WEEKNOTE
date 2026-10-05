@@ -30,7 +30,6 @@ struct HabitHistoryView: View {
     @State private var selectedDate: Date?
     private let cellSize: CGFloat = 16
     private let cellSpacing: CGFloat = 4
-    private let recordedColor = Color(red: 0.16, green: 0.58, blue: 0.31)
 
     private var selectedHabits: [Habit] { store.data.habits.filter { habitID == nil || $0.id == habitID } }
     private var dailyGoal: Int { max(1, selectedHabits.reduce(0) { $0 + $1.goalMinutes }) }
@@ -130,7 +129,7 @@ struct HabitHistoryView: View {
         } label: {
             RoundedRectangle(cornerRadius: 3)
                 .fill(future ? Color.clear : color(level: level(minutes: day.minutes)))
-                .overlay { RoundedRectangle(cornerRadius: 3).stroke(isSelected ? Color.primary : Theme.line, lineWidth: isSelected ? 1.5 : 0.5) }
+                .overlay { RoundedRectangle(cornerRadius: 3).stroke(isSelected ? Theme.accent : Theme.line, lineWidth: isSelected ? 1.5 : 0.5) }
                 .frame(width: cellSize, height: cellSize)
         }.buttonStyle(.plain).disabled(future)
             .accessibilityLabel("\(CalendarSupport.formatted(day.date, template: "yyyyMdE"))、\(future ? "未来の日付" : "\(day.minutes)分")")
@@ -148,6 +147,6 @@ struct HabitHistoryView: View {
     }
 
     private func color(level: Int) -> Color {
-        level == 0 ? Theme.subtle : recordedColor.opacity([0, 0.25, 0.45, 0.7, 1][level])
+        level == 0 ? Theme.subtle : Theme.accent.opacity([0, 0.25, 0.45, 0.7, 1][level])
     }
 }

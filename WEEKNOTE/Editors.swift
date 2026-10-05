@@ -100,9 +100,11 @@ struct HabitEditor: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 Form {
-                    Section { SelectedSymbolPreview(symbol: draft.symbol).id("habit.editor.top") }
                     Section {
-                        TextField("習慣名", text: $draft.name).focused($nameFocused).accessibilityIdentifier("habit.name")
+                        EditorTitleRow(symbol: draft.symbol, title: $draft.name, placeholder: "習慣名", focused: $nameFocused, titleIdentifier: "habit.name")
+                            .id("habit.editor.top")
+                    }
+                    Section {
                         Stepper("1日の目標 \(draft.goalMinutes)分", value: $draft.goalMinutes, in: 1...1440, step: 5).accessibilityIdentifier("habit.goal")
                     }
                     Section("アイコン（\(HabitSymbols.all.count)種類）") {
@@ -152,8 +154,10 @@ struct ListEditor: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 Form {
-                    Section { SelectedSymbolPreview(symbol: draft.symbol).id("list.editor.top") }
-                    Section { TextField("リスト名", text: $draft.name).focused($nameFocused).accessibilityIdentifier("list.name") }
+                    Section {
+                        EditorTitleRow(symbol: draft.symbol, title: $draft.name, placeholder: "リスト名", focused: $nameFocused, titleIdentifier: "list.name")
+                            .id("list.editor.top")
+                    }
                     Section("アイコン") {
                         SymbolPicker(selection: $draft.symbol) {
                             nameFocused = false
@@ -220,34 +224,29 @@ struct LinkEditor: View {
     }
 }
 
-private struct SelectedSymbolPreview: View {
+private struct EditorTitleRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let symbol: String
-
-    private var name: String {
-        if let entry = HabitSymbols.all.first(where: { $0.symbol == symbol }) { return entry.name }
-        switch symbol {
-        case "folder": return "フォルダ"
-        case "tray": return "受信箱"
-        case "briefcase": return "仕事"
-        default: return "アイコン"
-        }
-    }
+    @Binding var title: String
+    let placeholder: String
+    var focused: FocusState<Bool>.Binding
+    let titleIdentifier: String
 
     var body: some View {
         HStack(spacing: 18) {
             Image(systemName: symbol)
                 .font(.system(size: 34, weight: .light))
                 .frame(width: 76, height: 76)
-                .background(Theme.subtle, in: Circle())
+                .foregroundStyle(Theme.accent)
+                .background(Theme.accent.opacity(0.1), in: Circle())
                 .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
-                .accessibilityLabel(name)
+                .accessibilityLabel(HabitSymbols.all.first { $0.symbol == symbol }?.name ?? "アイコン")
                 .accessibilityIdentifier("editor.selectedSymbol")
-            VStack(alignment: .leading, spacing: 5) {
-                Text("選択中のアイコン").font(.caption).foregroundStyle(.secondary)
-                Text(name).font(.headline).accessibilityIdentifier("editor.selectedSymbolName")
-            }
-            Spacer()
+            TextField(placeholder, text: $title)
+                .font(.title3.weight(.semibold))
+                .focused(focused)
+                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                .accessibilityIdentifier(titleIdentifier)
         }.padding(.vertical, 8)
     }
 }

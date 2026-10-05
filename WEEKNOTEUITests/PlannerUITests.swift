@@ -72,10 +72,10 @@ final class PlannerUITests: XCTestCase {
         running.tap()
         let name = element("habit.name")
         waitUntil("Choosing an icon should update the preview, close the keyboard, and return to the name") {
-            self.element("editor.selectedSymbolName").label == "ランニング"
+            self.element("editor.selectedSymbol").label == "ランニング"
                 && !self.app.keyboards.firstMatch.exists && name.isHittable
         }
-        XCTAssertTrue(element("editor.selectedSymbol").isHittable)
+        assertEditorTitleRow("habit.name")
         capture("habit-icon-search")
 
         XCTAssertTrue(name.isHittable)
@@ -200,6 +200,7 @@ final class PlannerUITests: XCTestCase {
         let editor = element("editor.habit")
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         XCTAssertEqual(element("habit.name").value as? String, "読書")
+        assertEditorTitleRow("habit.name")
         assertFitsScreen(editor)
         capture("habit-context-edit")
         app.buttons["キャンセル"].tap()
@@ -248,17 +249,20 @@ final class PlannerUITests: XCTestCase {
         icon.tap()
         let name = element("list.name")
         waitUntil("The list icon preview and name should be visible with the keyboard closed") {
-            self.element("editor.selectedSymbolName").label == "ランニング"
+            self.element("editor.selectedSymbol").label == "ランニング"
                 && !self.app.keyboards.firstMatch.exists && name.isHittable
         }
-        XCTAssertTrue(element("editor.selectedSymbol").isHittable)
+        XCTAssertEqual(name.value as? String, "仕事", "Changing the icon should retain the list title")
+        assertEditorTitleRow("list.name")
         capture("list-icon-preview")
         element("editor.save").tap()
         waitUntil("Saving the list should close the editor") { !editor.exists }
         list.press(forDuration: 1)
         tapMenuAction("編集")
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
-        XCTAssertEqual(element("editor.selectedSymbolName").label, "ランニング")
+        XCTAssertEqual(element("editor.selectedSymbol").label, "ランニング")
+        XCTAssertEqual(name.value as? String, "仕事")
+        assertEditorTitleRow("list.name")
         capture("list-icon-saved")
         app.buttons["キャンセル"].tap()
         waitUntil("Cancelling the editor should return to the list") { !editor.exists && list.isHittable }
@@ -284,6 +288,33 @@ final class PlannerUITests: XCTestCase {
         }
         XCTAssertFalse(list.exists)
         capture("list-deleted-returned")
+    }
+
+    func testThreeTabsAndManagementPanelsReturnToCurrentTab() {
+        XCTAssertEqual(app.tabBars.buttons.count, 3)
+        XCTAssertFalse(app.tabBars.buttons["リスト"].exists)
+        XCTAssertFalse(app.tabBars.buttons["設定"].exists)
+        capture("navigation-three-tabs")
+
+        for name in ["今週", "カレンダー", "進捗"] {
+            openTab(name)
+            XCTAssertTrue(app.tabBars.buttons[name].isSelected)
+            XCTAssertTrue(element("navigation.menu").isHittable)
+            openTab("リスト")
+            XCTAssertTrue(element("list.add").waitForExistence(timeout: 5))
+            XCTAssertTrue(element("list.item.仕事").exists)
+            XCTAssertTrue(element("management.close").isHittable)
+            capture("navigation-lists-from-\(name)")
+            closeManagementPanel()
+            XCTAssertTrue(app.tabBars.buttons[name].isSelected, "Closing Lists should return to the previously selected tab")
+
+            openTab("設定")
+            XCTAssertTrue(element("appearance.picker").waitForExistence(timeout: 5))
+            XCTAssertTrue(element("management.close").isHittable)
+            capture("navigation-settings-from-\(name)")
+            closeManagementPanel()
+            XCTAssertTrue(app.tabBars.buttons[name].isSelected, "Closing Settings should return to the previously selected tab")
+        }
     }
 
     func testProgressWeekSwipesWithoutBlockingVerticalScrolling() {
@@ -336,11 +367,21 @@ final class PlannerUITests: XCTestCase {
             let initialLabel = label.label
             let chart = element("habit.chart")
             XCTAssertTrue(chart.waitForExistence(timeout: 5))
+            let firstDate = inspectChart(at: 0.2, period: period)
+            let secondDate = inspectChart(at: 0.8, period: period)
+            XCTAssertNotEqual(firstDate, secondDate, "Tapping a different bar should select its own date")
+            XCTAssertEqual(label.label, initialLabel, "Tapping the chart should retain its displayed period")
+            capture("habit-chart-\(period.lowercased())-selected")
             chart.swipeLeft()
             waitUntil("A left chart swipe should change the \(period) period") { label.label != initialLabel }
+            XCTAssertFalse(element("habit.chart.selection").exists, "Changing periods should clear the former selected bar")
+            XCTAssertFalse(element("habit.chart.tooltip").exists)
+            inspectChart(at: 0.55, period: period, expectZero: true)
             capture("habit-chart-\(period.lowercased())-next")
             element("habit.chart").swipeRight()
             waitUntil("A right chart swipe should restore the \(period) period") { label.label == initialLabel }
+            XCTAssertFalse(element("habit.chart.selection").exists)
+            XCTAssertFalse(element("habit.chart.tooltip").exists)
         }
         let initialPeriod = label.label
         let initialY = label.frame.minY
@@ -404,9 +445,84 @@ final class PlannerUITests: XCTestCase {
     }
 
     private func openTab(_ name: String) {
-        let button = app.tabBars.buttons[name]
-        XCTAssertTrue(button.waitForExistence(timeout: 5))
-        button.tap()
+        closeManagementPanel()
+        if name == "リスト" || name == "設定" {
+            let menu = element("navigation.menu")
+            XCTAssertTrue(menu.waitForExistence(timeout: 5))
+            XCTAssertTrue(menu.isHittable)
+            menu.tap()
+            tapMenuAction(name)
+            XCTAssertTrue(element("management.close").waitForExistence(timeout: 5))
+        } else {
+            let button = app.tabBars.buttons[name]
+            XCTAssertTrue(button.waitForExistence(timeout: 5))
+            button.tap()
+        }
+    }
+
+    private func closeManagementPanel() {
+        let close = element("management.close")
+        if close.exists && close.isHittable {
+            close.tap()
+            waitUntil("Closing the management panel should restore the main screen") { !close.exists }
+        }
+    }
+
+    private func assertEditorTitleRow(_ titleIdentifier: String, file: StaticString = #filePath, line: UInt = #line) {
+        let icon = element("editor.selectedSymbol")
+        let title = element(titleIdentifier)
+        XCTAssertTrue(icon.isHittable, file: file, line: line)
+        XCTAssertTrue(title.isHittable, file: file, line: line)
+        XCTAssertLessThan(icon.frame.maxX, title.frame.minX, "The title should be to the right of the selected icon", file: file, line: line)
+        XCTAssertLessThan(abs(icon.frame.midY - title.frame.midY), 20, "The title and icon should occupy the same top row", file: file, line: line)
+        XCTAssertEqual(app.textFields.matching(identifier: titleIdentifier).count, 1, "The title should have one editable field", file: file, line: line)
+        XCTAssertFalse(element("editor.selectedSymbolName").exists, file: file, line: line)
+        XCTAssertFalse(app.staticTexts["選択中のアイコン"].exists, file: file, line: line)
+    }
+
+    @discardableResult
+    private func inspectChart(at horizontalFraction: CGFloat, period: String, expectZero: Bool = false, file: StaticString = #filePath, line: UInt = #line) -> String {
+        let chart = element("habit.chart")
+        let previousDate = element("habit.chart.selection.date")
+        let previousLabel = previousDate.exists ? previousDate.label : nil
+        chart.coordinate(withNormalizedOffset: CGVector(dx: horizontalFraction, dy: 0.6)).tap()
+        let selection = element("habit.chart.selection")
+        let tooltip = element("habit.chart.tooltip")
+        let date = element("habit.chart.selection.date")
+        XCTAssertTrue(selection.waitForExistence(timeout: 5), "Tapping a chart bar should show its data", file: file, line: line)
+        XCTAssertTrue(tooltip.exists, file: file, line: line)
+        XCTAssertTrue(date.exists, file: file, line: line)
+        if let previousLabel {
+            waitUntil("Tapping another bar should update the selected date", file: file, line: line) { date.label != previousLabel }
+        }
+        XCTAssertFalse(date.label.isEmpty, file: file, line: line)
+
+        // The sample contains 14 reading records, ending today, with 30 minutes
+        // every third day and 15 minutes on the remaining days. Match the
+        // displayed date to those records so the UI must show their actual data.
+        let expectedMinutes = expectedReadingMinutes(for: date.label, annual: period == "Year")
+        XCTAssertEqual(selection.label, "\(date.label)、\(expectedMinutes)分", file: file, line: line)
+        if expectZero { XCTAssertEqual(expectedMinutes, 0, "The next period should expose zero-value bars", file: file, line: line) }
+        XCTAssertGreaterThanOrEqual(tooltip.frame.minX, chart.frame.minX - 2, file: file, line: line)
+        XCTAssertLessThanOrEqual(tooltip.frame.maxX, chart.frame.maxX + 2, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(tooltip.frame.minY, chart.frame.minY - 2, file: file, line: line)
+        XCTAssertLessThanOrEqual(tooltip.frame.maxY, chart.frame.maxY + 2, file: file, line: line)
+        return date.label
+    }
+
+    private func expectedReadingMinutes(for selectedLabel: String, annual: Bool) -> Int {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let today = calendar.startOfDay(for: Date())
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.setLocalizedDateFormatFromTemplate(annual ? "yyyyMMMM" : "MMMddEEE")
+        return (0..<14).reduce(0) { total, offset in
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: today), formatter.string(from: date) == selectedLabel else { return total }
+            return total + (offset % 3 == 0 ? 30 : 15)
+        }
     }
 
     private func tapMenuAction(_ title: String) {

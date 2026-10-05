@@ -48,7 +48,7 @@ struct SettingsView: View {
             } footer: { Text("データはこの端末に保存されます。端末を移行する前にバックアップを書き出してください。").font(.caption) }
             if let message { Section { Text(message).font(.subheadline) } }
             if let error = error ?? store.errorMessage { Section { Text(error).font(.subheadline).foregroundStyle(.red) } }
-            Section { LabeledContent("WEEKNOTE", value: "1.1") }
+            Section { LabeledContent("WEEKNOTE", value: "1.2") }
         }.scrollContentBackground(.hidden).background(Theme.background).navigationTitle("設定")
             .sheet(isPresented: $showHeaderSettings) { HeaderDisplaySettingsView() }
             .fileExporter(isPresented: $showExport, document: document, contentType: .json, defaultFilename: "weeknote-\(CalendarSupport.dayKey(Date()))") { result in

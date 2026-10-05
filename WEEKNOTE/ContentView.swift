@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum AppTab: Hashable { case week, calendar, progress, lists, settings }
+enum AppTab: Hashable { case week, calendar, progress }
 enum EditorSheet: Identifiable {
     case task(PlannerTask, Bool), habit(Habit), habitEditor(Habit?), list(PlannerList?), link(SavedLink?), headerDisplay
     var id: String {
@@ -15,6 +15,49 @@ enum EditorSheet: Identifiable {
     }
 }
 
+private enum ManagementScreen: String, Identifiable {
+    case lists, settings
+    var id: String { rawValue }
+}
+
+private struct EditorDestination: View {
+    let destination: EditorSheet
+    var body: some View {
+        switch destination {
+        case .task(let task, let isNew): TaskEditor(task: task, isNew: isNew)
+        case .habit(let habit): HabitDetailView(habitID: habit.id)
+        case .habitEditor(let habit): HabitEditor(habit: habit)
+        case .list(let list): ListEditor(list: list)
+        case .link(let link): LinkEditor(link: link)
+        case .headerDisplay: HeaderDisplaySettingsView()
+        }
+    }
+}
+
+private struct ManagementPanel: View {
+    @Environment(\.dismiss) private var dismiss
+    let screen: ManagementScreen
+    @State private var sheet: EditorSheet?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch screen {
+                case .lists: ListsView { sheet = $0 }
+                case .settings: SettingsView()
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる") { dismiss() }.accessibilityIdentifier("management.close")
+                }
+            }
+        }
+        .sheet(item: $sheet) { EditorDestination(destination: $0) }
+        .presentationDetents([.large]).presentationDragIndicator(.visible)
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject private var store: PlannerStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -22,29 +65,29 @@ struct ContentView: View {
     @State private var selectedDay = Date()
     @State private var month = Date()
     @State private var sheet: EditorSheet?
+    @State private var management: ManagementScreen?
     @State private var search = ""
     @State private var taskFilter = 0
     @State private var monthDirection = 1
 
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack { weeklyView }.tabItem { Label("今週", systemImage: "checklist") }.tag(AppTab.week)
-            NavigationStack { calendarView }.tabItem { Label("カレンダー", systemImage: "calendar") }.tag(AppTab.calendar)
-            NavigationStack { ProgressViewScreen(selectedDay: $selectedDay, showHabit: { sheet = .habit($0) }, editHabit: { sheet = .habitEditor($0) }) }.tabItem { Label("進捗", systemImage: "chart.bar") }.tag(AppTab.progress)
-            NavigationStack { ListsView { sheet = $0 } }.tabItem { Label("リスト", systemImage: "folder") }.tag(AppTab.lists)
-            NavigationStack { SettingsView() }.tabItem { Label("設定", systemImage: "slider.horizontal.3") }.tag(AppTab.settings)
+            NavigationStack { weeklyView.toolbar { ToolbarItem(placement: .topBarTrailing) { managementMenu } } }.tabItem { Label("今週", systemImage: "checklist") }.tag(AppTab.week)
+            NavigationStack { calendarView.toolbar { ToolbarItem(placement: .topBarTrailing) { managementMenu } } }.tabItem { Label("カレンダー", systemImage: "calendar") }.tag(AppTab.calendar)
+            NavigationStack { ProgressViewScreen(selectedDay: $selectedDay, showHabit: { sheet = .habit($0) }, editHabit: { sheet = .habitEditor($0) }).toolbar { ToolbarItem(placement: .topBarTrailing) { managementMenu } } }.tabItem { Label("進捗", systemImage: "chart.bar") }.tag(AppTab.progress)
         }
-        .tint(.primary)
-        .sheet(item: $sheet) { destination in
-            switch destination {
-            case .task(let task, let isNew): TaskEditor(task: task, isNew: isNew)
-            case .habit(let habit): HabitDetailView(habitID: habit.id)
-            case .habitEditor(let habit): HabitEditor(habit: habit)
-            case .list(let list): ListEditor(list: list)
-            case .link(let link): LinkEditor(link: link)
-            case .headerDisplay: HeaderDisplaySettingsView()
-            }
+        .tint(Theme.accent)
+        .sheet(item: $sheet) { EditorDestination(destination: $0) }
+        .sheet(item: $management) { ManagementPanel(screen: $0) }
+    }
+
+    private var managementMenu: some View {
+        Menu {
+            Button { management = .lists } label: { Label("リスト", systemImage: "folder") }
+            Button { management = .settings } label: { Label("設定", systemImage: "slider.horizontal.3") }
         }
+        label: { Image(systemName: "ellipsis.circle") }
+        .accessibilityLabel("リストと設定").accessibilityIdentifier("navigation.menu")
     }
 
     private var selectedTasks: [PlannerTask] { store.tasks(on: selectedDay, kind: .todo).filter(matches) }
@@ -66,12 +109,12 @@ struct ContentView: View {
                         Picker("表示", selection: $taskFilter) { Text("すべて").tag(0); Text("未完了").tag(1); Text("完了済み").tag(2) }
                     } label: { Image(systemName: "line.3.horizontal.decrease").frame(width: 36, height: 32) }.accessibilityLabel("表示を絞り込む")
                 }
-                taskSection(title: CalendarSupport.calendar.isDateInToday(selectedDay) ? "TODAY" : "TASKS", tasks: selectedTasks)
-                taskSection(title: "THIS WEEK", tasks: undatedTasks)
-                if !store.tasks(on: selectedDay, kind: .event).isEmpty {
-                    VStack(alignment: .leading, spacing: 0) {
-                        SectionCaption(title: "EVENTS", count: store.tasks(on: selectedDay, kind: .event).count)
-                        ForEach(store.tasks(on: selectedDay, kind: .event)) { event in EventRow(task: event) { sheet = .task(event, false) } }
+                agendaSection(tasks: store.tasks(on: selectedDay, kind: .event).filter(matches) + selectedTasks)
+                if !undatedTasks.isEmpty {
+                    DisclosureGroup {
+                        ForEach(undatedTasks) { task in TaskRow(task: task) { sheet = .task(task, false) } }
+                    } label: {
+                        HStack { Text("日付なし"); Spacer(); Text("\(undatedTasks.count)").foregroundStyle(.secondary).monospacedDigit() }
                     }
                 }
             }.padding(.horizontal, 24).padding(.top, 16).padding(.bottom, 22)
@@ -79,13 +122,21 @@ struct ContentView: View {
         .accessibilityIdentifier("screen.week")
         .background(Theme.background)
         .navigationTitle("WEEKNOTE").navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { Button { tab = .calendar } label: { Image(systemName: "calendar") }.accessibilityLabel("カレンダーを開く") }
-        }
         .safeAreaInset(edge: .bottom, spacing: 0) { addBar(kind: .todo) }
         .searchable(text: $search, prompt: "タスクを検索")
         .scrollDismissesKeyboard(.interactively)
         .animation(InteractionMotion.animation(reduceMotion: reduceMotion), value: taskFilter)
+    }
+
+    private func agendaSection(tasks: [PlannerTask]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionCaption(title: "予定とタスク", count: tasks.count)
+            if tasks.isEmpty { Text("予定・タスクはありません").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 16) }
+            ForEach(tasks) { task in
+                if task.kind == .event { EventRow(task: task) { sheet = .task(task, false) } }
+                else { TaskRow(task: task) { sheet = .task(task, false) } }
+            }
+        }
     }
 
     private var header: some View {
@@ -127,14 +178,6 @@ struct ContentView: View {
         }
     }
 
-    private func taskSection(title: String, tasks: [PlannerTask]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionCaption(title: title, count: tasks.count)
-            if tasks.isEmpty { Text("タスクはありません").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 16) }
-            ForEach(tasks) { task in TaskRow(task: task) { sheet = .task(task, false) } }
-        }
-    }
-
     private func addBar(kind: TaskKind) -> some View {
         Button {
             var date = selectedDay
@@ -145,7 +188,7 @@ struct ContentView: View {
             sheet = .task(PlannerTask(title: "", date: date, kind: kind), true)
         } label: {
             HStack { Image(systemName: "plus"); Text(kind == .todo ? "タスクを追加" : "予定を追加"); Spacer() }
-                .font(.subheadline).padding(17).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14)).overlay { RoundedRectangle(cornerRadius: 14).stroke(Theme.line, lineWidth: 0.5) }
+                .font(.subheadline).padding(17).background(Theme.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 14)).overlay { RoundedRectangle(cornerRadius: 14).stroke(Theme.accent.opacity(0.25), lineWidth: 0.5) }
         }.buttonStyle(PressFeedbackStyle()).padding(.horizontal, 24).padding(.vertical, 12).background(Theme.background.opacity(0.85)).accessibilityIdentifier(kind == .todo ? "task.add" : "event.add")
     }
 
@@ -174,12 +217,7 @@ struct ContentView: View {
                     Text(selectedDay.formatted(.dateTime.month().day().weekday())).font(.headline)
                     if let holiday = HolidayCalendar.shared.name(for: selectedDay) { Label(holiday, systemImage: "flag").font(.subheadline).foregroundStyle(Theme.holiday) }
                 }
-                VStack(alignment: .leading, spacing: 0) {
-                    SectionCaption(title: "EVENTS", count: store.tasks(on: selectedDay, kind: .event).count)
-                    if store.tasks(on: selectedDay, kind: .event).isEmpty { Text("予定はありません").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 15) }
-                    ForEach(store.tasks(on: selectedDay, kind: .event)) { task in EventRow(task: task) { sheet = .task(task, false) } }
-                }
-                taskSection(title: "TASKS", tasks: store.tasks(on: selectedDay, kind: .todo))
+                agendaSection(tasks: store.tasks(on: selectedDay, kind: .event) + store.tasks(on: selectedDay, kind: .todo))
                 Text(HolidayCalendar.shared.coverageText).font(.caption).foregroundStyle(.secondary)
             }.padding(24)
         }.background(Theme.background).navigationTitle("カレンダー").navigationBarTitleDisplayMode(.inline)
@@ -208,9 +246,9 @@ struct DateRibbon: View {
                             VStack(spacing: 5) {
                                 Text(day.formatted(.dateTime.weekday(.abbreviated))).font(.caption2)
                                 Text(day.formatted(.dateTime.day())).font(.title3.weight(selected ? .bold : .regular))
-                                Circle().fill(CalendarSupport.calendar.isDateInToday(day) ? Color.primary : .clear).frame(width: 3, height: 3)
-                            }.foregroundStyle(holiday != nil || CalendarSupport.calendar.component(.weekday, from: day) == 1 ? Theme.holiday : .primary)
-                                .frame(width: 46, height: 72).background(selected ? Color.primary.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 12))
+                                Circle().fill(CalendarSupport.calendar.isDateInToday(day) ? Theme.accent : .clear).frame(width: 3, height: 3)
+                            }.foregroundStyle(holiday != nil || CalendarSupport.calendar.component(.weekday, from: day) == 1 ? Theme.holiday : (selected ? Theme.accent : .primary))
+                                .frame(width: 46, height: 72).background(selected ? Theme.accent.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 12))
                         }.buttonStyle(.plain).id(CalendarSupport.dayKey(day)).accessibilityLabel(day.formatted(.dateTime.month().day().weekday()) + (holiday.map { " \($0)" } ?? ""))
                             .accessibilityAddTraits(selected ? [.isSelected] : [])
                     }
@@ -253,11 +291,11 @@ struct MonthGrid: View {
                     VStack(spacing: 3) {
                         Text(date.formatted(.dateTime.day())).font(.body.weight(selected ? .bold : .regular))
                         Text(holiday ?? " ").font(.system(size: 8)).lineLimit(1).minimumScaleFactor(0.7).frame(height: 12)
-                        Circle().fill(hasTasks ? Color.primary.opacity(0.6) : .clear).frame(width: 3, height: 3)
-                    }.foregroundStyle(holiday != nil || CalendarSupport.calendar.component(.weekday, from: date) == 1 ? Theme.holiday : .primary)
+                        Circle().fill(hasTasks ? Theme.accent : .clear).frame(width: 3, height: 3)
+                    }.foregroundStyle(holiday != nil || CalendarSupport.calendar.component(.weekday, from: date) == 1 ? Theme.holiday : (selected ? Theme.accent : .primary))
                         .opacity(sameMonth ? 1 : 0.3).frame(maxWidth: .infinity).frame(minHeight: 51)
-                        .background(selected ? Color.primary.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 9))
-                        .overlay { RoundedRectangle(cornerRadius: 9).stroke(CalendarSupport.calendar.isDateInToday(date) ? Color.primary.opacity(0.3) : .clear, lineWidth: 1) }
+                        .background(selected ? Theme.accent.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 9))
+                        .overlay { RoundedRectangle(cornerRadius: 9).stroke(CalendarSupport.calendar.isDateInToday(date) ? Theme.accent.opacity(0.6) : .clear, lineWidth: 1) }
                 }.buttonStyle(.plain).accessibilityLabel(date.formatted(.dateTime.month().day().weekday()) + (holiday.map { " \($0)" } ?? ""))
                     .accessibilityAddTraits(selected ? [.isSelected] : [])
                     .contextMenu {
@@ -284,16 +322,15 @@ struct ProgressViewScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                Text("PROGRESS").font(Theme.heading(53))
                 DateRibbon(selectedDay: $selectedDay)
                 ZStack {
                   VStack(alignment: .leading, spacing: 8) {
-                    SectionCaption(title: "WEEKLY COMPLETION")
+                    SectionCaption(title: "週間の完了率")
                     Text("\(CalendarSupport.formatted(days.first ?? selectedDay, template: "Md")) – \(CalendarSupport.formatted(days.last ?? selectedDay, template: "Md"))")
                         .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary).accessibilityIdentifier("progress.weekLabel")
                     HStack(alignment: .firstTextBaseline, spacing: 4) { Text("\(tasks.isEmpty ? 0 : Int(Double(done) / Double(tasks.count) * 100))").font(Theme.heading(76)).contentTransition(.numericText()); Text("%").font(Theme.heading(34)).foregroundStyle(.secondary) }
                     Text("\(tasks.count)件中 \(done)件完了").font(.subheadline).foregroundStyle(.secondary)
-                    SwiftUI.ProgressView(value: tasks.isEmpty ? 0 : Double(done) / Double(tasks.count)).tint(.primary)
+                    SwiftUI.ProgressView(value: tasks.isEmpty ? 0 : Double(done) / Double(tasks.count)).tint(Theme.accent)
                   }.frame(maxWidth: .infinity, alignment: .leading)
                     .id(CalendarSupport.dayKey(CalendarSupport.startOfWeek(selectedDay)))
                     .transition(InteractionMotion.pageTransition(direction: weekDirection, reduceMotion: reduceMotion))
@@ -309,11 +346,11 @@ struct ProgressViewScreen: View {
                     }
                 HabitHistoryView(referenceDate: selectedDay, onSelectDate: { selectedDay = $0 })
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionCaption(title: "HABITS")
+                    SectionCaption(title: "習慣")
                     ForEach(store.data.habits) { habit in
                         let total = days.reduce(0) { $0 + store.habitMinutes(habit, on: $1) }
                         Button { showHabit(habit) } label: {
-                            HStack(spacing: 14) { Image(systemName: habit.symbol).frame(width: 28); Text(habit.name); Spacer(); Text("\(total)分").font(.system(.body, design: .monospaced)); Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary) }.padding(.vertical, 15)
+                            HStack(spacing: 14) { Image(systemName: habit.symbol).foregroundStyle(Theme.accent).frame(width: 28); Text(habit.name); Spacer(); Text("\(total)分").font(.system(.body, design: .monospaced)); Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary) }.padding(.vertical, 15)
                         }.buttonStyle(.plain).overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 0.5) }
                             .modifier(HabitContextActions(habit: habit, open: { showHabit(habit) }, edit: { editHabit(habit) }))
                     }
@@ -360,13 +397,13 @@ struct ListDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 25) {
                 VStack(alignment: .leading, spacing: 0) {
-                    SectionCaption(title: "TASKS")
-                    ForEach(store.data.tasks.filter { $0.listID == listID && $0.kind == .todo }) { task in TaskRow(task: task, showDate: true) { showSheet(.task(task, false)) } }
+                    let tasks = store.data.tasks.filter { $0.listID == listID }
+                    if tasks.isEmpty { Text("項目はありません").font(.subheadline).foregroundStyle(.secondary) }
+                    ForEach(tasks) { task in
+                        if task.kind == .event { EventRow(task: task) { showSheet(.task(task, false)) } }
+                        else { TaskRow(task: task, showDate: true) { showSheet(.task(task, false)) } }
+                    }
                     Button { showSheet(.task(PlannerTask(title: "", listID: listID), true)) } label: { Label("タスクを追加", systemImage: "plus").font(.subheadline).padding(.vertical, 16) }
-                }
-                VStack(alignment: .leading, spacing: 0) {
-                    SectionCaption(title: "EVENTS")
-                    ForEach(store.data.tasks.filter { $0.listID == listID && $0.kind == .event }) { task in EventRow(task: task) { showSheet(.task(task, false)) } }
                 }
                 SavedLinksSection(listID: listID, showSheet: showSheet)
             }.padding(24)
@@ -398,7 +435,7 @@ struct SavedLinksSection: View {
     var showSheet: (EditorSheet) -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            SectionCaption(title: "LINKS")
+            if store.data.links.contains(where: { listID == nil || $0.listID == listID }) { SectionCaption(title: "リンク") }
             ForEach(store.data.links.filter { listID == nil || $0.listID == listID }) { item in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {

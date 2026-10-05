@@ -44,6 +44,7 @@ struct HabitDetailView: View {
     @State private var error: String?
     @State private var pageDirection = 1
     @State private var pendingLogDeletion: HabitLog?
+    @State private var selectedChartDate: Date?
     private var habit: Habit? { store.data.habits.first { $0.id == habitID } }
     private var days: [Date] {
         switch period {
@@ -122,7 +123,7 @@ struct HabitDetailView: View {
                                         else { error = store.errorMessage }
                                     }
                                 }
-                                    .buttonStyle(.borderedProminent).tint(.primary).foregroundStyle(Theme.background).accessibilityIdentifier("habit.record")
+                                    .buttonStyle(.borderedProminent).tint(Theme.accent).foregroundStyle(Theme.background).accessibilityIdentifier("habit.record")
                             }
                         }
                         timerControls
@@ -156,18 +157,89 @@ struct HabitDetailView: View {
                     dismiss()
                 }
             }
+            .onChange(of: period) { _, _ in selectedChartDate = nil }
+            .onChange(of: reference) { _, _ in selectedChartDate = nil }
     }
 
     private func periodChart(habit: Habit) -> some View {
         Chart {
             ForEach(bars) { bar in
                 BarMark(x: .value("日付", bar.date, unit: period == .year ? .month : .day), y: .value("分", bar.minutes))
-                    .foregroundStyle(Color.primary.opacity(CalendarSupport.calendar.isDateInToday(bar.date) ? 0.9 : 0.55))
+                    .foregroundStyle(Theme.accent.opacity(selectedChartDate == nil || selectedChartDate == bar.date ? 0.85 : 0.35))
                     .cornerRadius(4)
             }
             if period != .year { RuleMark(y: .value("目標", habit.goalMinutes)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3])).foregroundStyle(Color.secondary.opacity(0.5)) }
         }.chartXAxis { AxisMarks(values: .automatic(desiredCount: period == .week ? 7 : 6)) { _ in AxisValueLabel(format: period == .year ? .dateTime.month(.abbreviated) : .dateTime.day(), centered: true) } }
-            .chartYAxis { AxisMarks(position: .leading) }.frame(height: 170).accessibilityIdentifier("habit.chart")
+            .chartYAxis { AxisMarks(position: .leading) }
+            .chartOverlay { proxy in
+                GeometryReader { geometry in
+                    if let anchor = proxy.plotFrame {
+                        let plot = geometry[anchor]
+                        ZStack(alignment: .topLeading) {
+                            Color.clear.contentShape(Rectangle())
+                                .gesture(SpatialTapGesture().onEnded { event in
+                                    guard plot.contains(event.location) else { return }
+                                    let positions = bars.compactMap { bar -> HabitChartInspection.Position? in
+                                        guard let x = proxy.position(forX: chartCenterDate(bar.date)) else { return nil }
+                                        return .init(date: bar.date, x: x)
+                                    }
+                                    let selection = HabitChartInspection.nearestDate(atX: event.location.x - plot.minX, positions: positions)
+                                    if selectedChartDate != selection {
+                                        withAnimation(reduceMotion ? nil : .smooth(duration: 0.18)) { selectedChartDate = selection }
+                                        InteractionMotion.selectionFeedback()
+                                    }
+                                })
+                            if let bar = bars.first(where: { $0.date == selectedChartDate }),
+                               let x = proxy.position(forX: chartCenterDate(bar.date)),
+                               let y = proxy.position(forY: bar.minutes) {
+                                chartSelectionOverlay(bar: bar, point: CGPoint(x: plot.minX + x, y: plot.minY + y), plot: plot)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                    }
+                }
+            }
+            .environment(\.calendar, CalendarSupport.calendar)
+            .frame(height: 170)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("habit.chart")
+    }
+
+    private func chartCenterDate(_ date: Date) -> Date {
+        HabitChartInspection.bucketCenter(date, unit: period == .year ? .month : .day, calendar: CalendarSupport.calendar)
+    }
+
+    private func chartSelectionOverlay(bar: HabitBar, point: CGPoint, plot: CGRect) -> some View {
+        let marker = CGPoint(x: min(plot.maxX, max(plot.minX, point.x)), y: min(plot.maxY, max(plot.minY, point.y)))
+        let tooltipWidth = min(146, max(80, plot.width - 8))
+        let tooltipHeight: CGFloat = 48
+        let preferredX = marker.x + tooltipWidth / 2 + 10
+        let tooltipX = min(plot.maxX - tooltipWidth / 2 - 4, max(plot.minX + tooltipWidth / 2 + 4, preferredX))
+        let tooltipY = plot.minY + tooltipHeight / 2 + 4
+        let dateLabel = CalendarSupport.formatted(bar.date, template: period == .year ? "yyyyMMMM" : "MMMddEEE")
+        return ZStack(alignment: .topLeading) {
+            Path { path in
+                path.move(to: CGPoint(x: marker.x, y: plot.minY)); path.addLine(to: CGPoint(x: marker.x, y: plot.maxY))
+                path.move(to: CGPoint(x: plot.minX, y: marker.y)); path.addLine(to: CGPoint(x: plot.maxX, y: marker.y))
+            }.stroke(Theme.accent.opacity(0.8), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .accessibilityHidden(true)
+            Circle().fill(Theme.accent).frame(width: 7, height: 7).position(marker)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(dateLabel).font(.caption2).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("habit.chart.selection.date")
+                Text("\(bar.minutes)分").font(.system(.caption, design: .monospaced).weight(.semibold)).foregroundStyle(.primary)
+                    .accessibilityLabel("\(dateLabel)、\(bar.minutes)分")
+                    .accessibilityIdentifier("habit.chart.selection")
+            }.lineLimit(1).minimumScaleFactor(0.75)
+                .frame(width: tooltipWidth - 18, height: tooltipHeight - 12, alignment: .leading)
+                .padding(.horizontal, 9).padding(.vertical, 6)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 9))
+                .overlay { RoundedRectangle(cornerRadius: 9).stroke(Theme.accent.opacity(0.3), lineWidth: 0.5) }
+                .position(x: tooltipX, y: tooltipY)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("habit.chart.tooltip")
+        }
     }
 
     private func metric(_ label: String, value: Int, unit: String) -> some View {
@@ -200,7 +272,7 @@ struct HabitDetailView: View {
                         Button("終了して記録") {
                             let amount = max(1, Int(ceil(timer.elapsed() / 60)))
                             if store.addHabitLog(habitID: habitID, date: Date(), minutes: amount) { timer.reset(); error = nil } else { timer.pause(); error = store.errorMessage }
-                        }.buttonStyle(.borderedProminent).tint(.primary).foregroundStyle(Theme.background)
+                        }.buttonStyle(.borderedProminent).tint(Theme.accent).foregroundStyle(Theme.background)
                         Button("取り消す", role: .destructive) { timer.reset() }.font(.caption)
                     }
                     Text("1分未満を切り上げて記録します。").font(.caption).foregroundStyle(.secondary)

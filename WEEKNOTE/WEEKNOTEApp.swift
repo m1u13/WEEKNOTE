@@ -23,7 +23,7 @@ struct WEEKNOTEApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .tint(.primary)
+                .tint(Theme.accent)
                 .environmentObject(store)
                 .environment(\.locale, Locale(identifier: "ja_JP"))
                 .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil)

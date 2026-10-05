@@ -5,6 +5,7 @@ enum Theme {
     static let surface = Color(uiColor: .secondarySystemGroupedBackground)
     static let subtle = Color.primary.opacity(0.045)
     static let line = Color.primary.opacity(0.1)
+    static let accent = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.35, green: 0.78, blue: 0.51, alpha: 1) : UIColor(red: 0.17, green: 0.48, blue: 0.28, alpha: 1) })
     static let holiday = Color(red: 0.76, green: 0.25, blue: 0.22)
     static func heading(_ size: CGFloat = 64) -> Font { .custom("Anton-Regular", size: size, relativeTo: .largeTitle) }
 }
@@ -69,7 +70,7 @@ struct ProgressRing<Content: View>: View {
     var body: some View {
         ZStack {
             Circle().stroke(Theme.line, lineWidth: 3)
-            Circle().trim(from: 0, to: min(1, max(0, progress))).stroke(Color.primary.opacity(0.7), style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
+            Circle().trim(from: 0, to: min(1, max(0, progress))).stroke(Theme.accent, style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
             content()
         }.frame(width: size, height: size).animation(InteractionMotion.animation(reduceMotion: reduceMotion), value: progress)
     }
@@ -100,7 +101,9 @@ struct SymbolPicker: View {
                     } label: {
                         VStack(spacing: 5) {
                             Image(systemName: entry.symbol).font(.system(size: 23, weight: .light)).frame(width: 48, height: 48)
-                                .background(selection == entry.symbol ? Color.primary.opacity(0.12) : Theme.subtle, in: RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(selection == entry.symbol ? Theme.accent : Color.primary)
+                                .background(selection == entry.symbol ? Theme.accent.opacity(0.14) : Theme.subtle, in: RoundedRectangle(cornerRadius: 12))
+                                .overlay { RoundedRectangle(cornerRadius: 12).stroke(selection == entry.symbol ? Theme.accent.opacity(0.65) : .clear, lineWidth: 1.5) }
                             Text(entry.name).font(.caption2).lineLimit(1)
                         }
                     }.buttonStyle(.plain)
@@ -123,7 +126,7 @@ struct TaskRow: View {
         HStack(spacing: 14) {
             Button { withAnimation(InteractionMotion.animation(reduceMotion: reduceMotion)) { _ = store.toggleTask(task) } } label: {
                 Image(systemName: task.isCompleted ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 19, weight: .light)).foregroundStyle(task.isCompleted ? Color.primary.opacity(0.7) : Color.secondary.opacity(0.6))
+                    .font(.system(size: 19, weight: .light)).foregroundStyle(task.isCompleted ? Theme.accent : Color.secondary.opacity(0.6))
                     .frame(width: 28, height: 44).contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
             }.buttonStyle(PressFeedbackStyle()).accessibilityLabel("\(task.title)を\(task.isCompleted ? "未完了に戻す" : "完了にする")")
             Button(action: edit) {
@@ -156,7 +159,7 @@ struct EventRow: View {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 22, weight: .light)).frame(width: 28, height: 44)
                     .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
-            }.buttonStyle(PressFeedbackStyle()).foregroundStyle(task.isCompleted ? Color.primary : .secondary)
+            }.buttonStyle(PressFeedbackStyle()).foregroundStyle(task.isCompleted ? Theme.accent : .secondary)
                 .accessibilityLabel("\(task.title)を\(task.isCompleted ? "未完了に戻す" : "完了にする")")
             Button(action: edit) {
                 HStack(alignment: .top, spacing: 14) {
@@ -174,7 +177,7 @@ struct EventRow: View {
                                 Text(task.completionStatus.title)
                                 if task.completionDateOnly { Text(completed, format: .dateTime.month().day()) }
                                 else { Text(completed, style: .time) }
-                            }.font(.caption).foregroundStyle(.secondary)
+                            }.font(.caption).foregroundStyle(Theme.accent)
                         } else if task.isOverdue() { Text("未完了・予定時刻を経過").font(.caption).foregroundStyle(Theme.holiday) }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.multilineTextAlignment(.leading).padding(.vertical, 14)

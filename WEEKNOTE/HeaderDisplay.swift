@@ -179,7 +179,7 @@ struct HeaderDisplaySettingsView: View {
                             HStack {
                                 Text(mode.title)
                                 Spacer()
-                                if draft.mode == mode { Image(systemName: "checkmark").fontWeight(.semibold) }
+                                if draft.mode == mode { Image(systemName: "checkmark").fontWeight(.semibold).foregroundStyle(Theme.accent) }
                             }.contentShape(Rectangle())
                         }.buttonStyle(.plain)
                             .accessibilityIdentifier("header.mode.\(mode.rawValue)")
