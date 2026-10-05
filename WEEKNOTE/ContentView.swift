@@ -296,6 +296,7 @@ struct MonthGrid: View {
                         .opacity(sameMonth ? 1 : 0.3).frame(maxWidth: .infinity).frame(minHeight: 51)
                         .background(selected ? Theme.accent.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 9))
                         .overlay { RoundedRectangle(cornerRadius: 9).stroke(CalendarSupport.calendar.isDateInToday(date) ? Theme.accent.opacity(0.6) : .clear, lineWidth: 1) }
+                        .contentShape(Rectangle())
                 }.buttonStyle(.plain).accessibilityLabel(date.formatted(.dateTime.month().day().weekday()) + (holiday.map { " \($0)" } ?? ""))
                     .accessibilityAddTraits(selected ? [.isSelected] : [])
                     .contextMenu {
@@ -305,7 +306,10 @@ struct MonthGrid: View {
                         }
                     }
             }
-        }.accessibilityIdentifier("calendar.month")
+        }.frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("calendar.month")
     }
 }
 

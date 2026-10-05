@@ -303,14 +303,14 @@ final class PlannerUITests: XCTestCase {
             openTab("リスト")
             XCTAssertTrue(element("list.add").waitForExistence(timeout: 5))
             XCTAssertTrue(element("list.item.仕事").exists)
-            XCTAssertTrue(element("management.close").isHittable)
+            XCTAssertTrue(managementClose.isHittable)
             capture("navigation-lists-from-\(name)")
             closeManagementPanel()
             XCTAssertTrue(app.tabBars.buttons[name].isSelected, "Closing Lists should return to the previously selected tab")
 
             openTab("設定")
             XCTAssertTrue(element("appearance.picker").waitForExistence(timeout: 5))
-            XCTAssertTrue(element("management.close").isHittable)
+            XCTAssertTrue(managementClose.isHittable)
             capture("navigation-settings-from-\(name)")
             closeManagementPanel()
             XCTAssertTrue(app.tabBars.buttons[name].isSelected, "Closing Settings should return to the previously selected tab")
@@ -361,7 +361,7 @@ final class PlannerUITests: XCTestCase {
         let detail = element("habit.detail")
         XCTAssertTrue(detail.waitForExistence(timeout: 5))
         let picker = element("habit.period")
-        let label = element("habit.period.label")
+        let label = app.staticTexts["habit.period.label"].firstMatch
         for period in ["Week", "Month", "Year"] {
             picker.buttons[period].tap()
             let initialLabel = label.label
@@ -374,14 +374,14 @@ final class PlannerUITests: XCTestCase {
             capture("habit-chart-\(period.lowercased())-selected")
             chart.swipeLeft()
             waitUntil("A left chart swipe should change the \(period) period") { label.label != initialLabel }
-            XCTAssertFalse(element("habit.chart.selection").exists, "Changing periods should clear the former selected bar")
-            XCTAssertFalse(element("habit.chart.tooltip").exists)
+            XCTAssertFalse(app.staticTexts["habit.chart.selection"].exists, "Changing periods should clear the former selected bar")
+            XCTAssertFalse(app.otherElements["habit.chart.tooltip"].exists)
             inspectChart(at: 0.55, period: period, expectZero: true)
             capture("habit-chart-\(period.lowercased())-next")
             element("habit.chart").swipeRight()
             waitUntil("A right chart swipe should restore the \(period) period") { label.label == initialLabel }
-            XCTAssertFalse(element("habit.chart.selection").exists)
-            XCTAssertFalse(element("habit.chart.tooltip").exists)
+            XCTAssertFalse(app.staticTexts["habit.chart.selection"].exists)
+            XCTAssertFalse(app.otherElements["habit.chart.tooltip"].exists)
         }
         let initialPeriod = label.label
         let initialY = label.frame.minY
@@ -444,6 +444,10 @@ final class PlannerUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
+    private var managementClose: XCUIElement {
+        app.otherElements["management.close"].firstMatch
+    }
+
     private func openTab(_ name: String) {
         closeManagementPanel()
         if name == "リスト" || name == "設定" {
@@ -452,7 +456,7 @@ final class PlannerUITests: XCTestCase {
             XCTAssertTrue(menu.isHittable)
             menu.tap()
             tapMenuAction(name)
-            XCTAssertTrue(element("management.close").waitForExistence(timeout: 5))
+            XCTAssertTrue(managementClose.waitForExistence(timeout: 5))
         } else {
             let button = app.tabBars.buttons[name]
             XCTAssertTrue(button.waitForExistence(timeout: 5))
@@ -461,7 +465,7 @@ final class PlannerUITests: XCTestCase {
     }
 
     private func closeManagementPanel() {
-        let close = element("management.close")
+        let close = managementClose
         if close.exists && close.isHittable {
             close.tap()
             waitUntil("Closing the management panel should restore the main screen") { !close.exists }
@@ -482,32 +486,35 @@ final class PlannerUITests: XCTestCase {
 
     @discardableResult
     private func inspectChart(at horizontalFraction: CGFloat, period: String, expectZero: Bool = false, file: StaticString = #filePath, line: UInt = #line) -> String {
-        let chart = element("habit.chart")
-        let previousDate = element("habit.chart.selection.date")
+        let chart = app.otherElements["habit.chart"].firstMatch
+        let previousDate = app.staticTexts["habit.chart.selection.date"].firstMatch
         let previousLabel = previousDate.exists ? previousDate.label : nil
         chart.coordinate(withNormalizedOffset: CGVector(dx: horizontalFraction, dy: 0.6)).tap()
-        let selection = element("habit.chart.selection")
-        let tooltip = element("habit.chart.tooltip")
-        let date = element("habit.chart.selection.date")
+        let selection = app.staticTexts["habit.chart.selection"].firstMatch
+        let tooltip = app.otherElements["habit.chart.tooltip"].firstMatch
+        let date = app.staticTexts["habit.chart.selection.date"].firstMatch
         XCTAssertTrue(selection.waitForExistence(timeout: 5), "Tapping a chart bar should show its data", file: file, line: line)
         XCTAssertTrue(tooltip.exists, file: file, line: line)
         XCTAssertTrue(date.exists, file: file, line: line)
         if let previousLabel {
             waitUntil("Tapping another bar should update the selected date", file: file, line: line) { date.label != previousLabel }
         }
-        XCTAssertFalse(date.label.isEmpty, file: file, line: line)
+        let selectedLabel = date.label
+        XCTAssertFalse(selectedLabel.isEmpty, file: file, line: line)
 
         // The sample contains 14 reading records, ending today, with 30 minutes
         // every third day and 15 minutes on the remaining days. Match the
         // displayed date to those records so the UI must show their actual data.
-        let expectedMinutes = expectedReadingMinutes(for: date.label, annual: period == "Year")
-        XCTAssertEqual(selection.label, "\(date.label)、\(expectedMinutes)分", file: file, line: line)
+        let expectedMinutes = expectedReadingMinutes(for: selectedLabel, annual: period == "Year")
+        XCTAssertEqual(selection.label, "\(selectedLabel)、\(expectedMinutes)分", file: file, line: line)
         if expectZero { XCTAssertEqual(expectedMinutes, 0, "The next period should expose zero-value bars", file: file, line: line) }
-        XCTAssertGreaterThanOrEqual(tooltip.frame.minX, chart.frame.minX - 2, file: file, line: line)
-        XCTAssertLessThanOrEqual(tooltip.frame.maxX, chart.frame.maxX + 2, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(tooltip.frame.minY, chart.frame.minY - 2, file: file, line: line)
-        XCTAssertLessThanOrEqual(tooltip.frame.maxY, chart.frame.maxY + 2, file: file, line: line)
-        return date.label
+        let tooltipFrame = tooltip.frame
+        let chartFrame = chart.frame
+        XCTAssertGreaterThanOrEqual(tooltipFrame.minX, chartFrame.minX - 2, file: file, line: line)
+        XCTAssertLessThanOrEqual(tooltipFrame.maxX, chartFrame.maxX + 2, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(tooltipFrame.minY, chartFrame.minY - 2, file: file, line: line)
+        XCTAssertLessThanOrEqual(tooltipFrame.maxY, chartFrame.maxY + 2, file: file, line: line)
+        return selectedLabel
     }
 
     private func expectedReadingMinutes(for selectedLabel: String, annual: Bool) -> Int {
@@ -561,6 +568,10 @@ final class PlannerUITests: XCTestCase {
     }
 
     private func waitUntil(_ message: String, timeout: TimeInterval = 8, file: StaticString = #filePath, line: UInt = #line, condition: @escaping () -> Bool) {
+        // Querying a large SwiftUI accessibility tree can itself take several
+        // seconds. Check the current state before starting the polling clock so
+        // an already completed operation is not reported as a wait timeout.
+        if condition() { return }
         let predicate = NSPredicate { _, _ in condition() }
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: timeout), .completed, message, file: file, line: line)
